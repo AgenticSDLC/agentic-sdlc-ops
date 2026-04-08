@@ -19,6 +19,31 @@ Possible outcomes:
 - readiness passes and the issue remains eligible for execution
 - readiness fails and a blocking label such as `needs-details` is applied
 
+## Execution Topology Mapping
+
+Purpose:
+
+- determine whether execution should run in combined, split, or specialized topology
+- keep topology selection separate from lifecycle state
+
+Typical behavior:
+
+- treat `combined` as the default topology unless the repository defines another default
+- use supporting labels or repository rules to select `split` or `specialized` when needed
+- keep topology routing visible and simple enough for humans to reason about
+- treat topology choice as an execution strategy layered on top of the same lifecycle, not as a separate workflow state machine
+
+Typical topology meanings:
+
+- `combined`
+  - one agent performs planning and implementation within the same execution flow
+- `split`
+  - a planner agent produces an execution contract and a separate executor agent implements against it
+- `specialized`
+  - multiple specialized agents participate with explicit handoffs between roles such as planner, executor, verifier, or integrator
+
+Topology labels and role labels should not imply that every repository must implement every role or every handoff. Repositories may run the full flow, a partial specialization, or stay in the combined path.
+
 ## Branch Bootstrap
 
 Purpose:
@@ -31,17 +56,29 @@ Typical behavior:
 - create the branch if it does not exist
 - avoid creating duplicate execution branches
 
-## Plan Visibility Mapping
+## Plan And Handoff Contract Mapping
 
 Purpose:
 
 - make the implementation plan visible before meaningful code changes begin
+- strengthen the plan into an execution contract when work is handed from one agent to another
 
 Typical behavior:
 
 - require a preflight plan comment on the issue
 - or require the PR description to expose the plan before review
 - optionally verify plan presence before later lifecycle transitions
+- when topology is `split` or `specialized`, require a visible handoff artifact before the next role begins work
+- use the same visible plan artifact as the source of truth unless a repository has a documented reason to split plan and handoff artifacts
+
+Typical contract contents:
+
+- scoped task summary
+- acceptance criteria mapping
+- expected files, subsystems, or surfaces of change
+- sequencing or dependency constraints
+- stop-and-ask conditions
+- identified risks, assumptions, or open questions
 
 ## Draft PR Bootstrap
 
@@ -80,6 +117,46 @@ Typical behavior:
 - pause further automation or require re-planning when a valid control signal appears
 - post visible status when execution is paused
 
+## Role Handoff Mapping
+
+Purpose:
+
+- define how work passes between agents when execution is not combined
+- prevent hidden state and ambiguous delegation
+
+Typical behavior:
+
+- require each role to leave a visible artifact for the next role
+- keep handoff state in the issue or PR thread rather than in hidden agent memory
+- prevent later roles from proceeding when the required handoff artifact is missing or invalid
+- require re-planning when a human changes scope or approach mid-execution
+
+Typical handoff expectations:
+
+- planner to executor
+- executor to verifier
+- verifier to integrator
+
+Typical handoff contents:
+
+- current execution contract or updates to it
+- completion status against acceptance criteria
+- unresolved risks, failures, or follow-up requirements
+
+## Final Accountability Mapping
+
+Purpose:
+
+- ensure one visible actor is accountable for final verification status and lifecycle advancement
+- avoid ambiguous ownership when multiple agents participate
+
+Typical behavior:
+
+- assign one agent, workflow, or automation identity to decide whether required verification has passed
+- require that accountable actor to post the final completion or blocker status in the visible issue or PR surface
+- prevent issue or PR lifecycle advancement when that ownership is unclear
+- allow supporting roles to contribute evidence without changing the final accountability rule
+
 ## Verification Mapping
 
 Purpose:
@@ -95,7 +172,7 @@ Map locally:
 
 ## Important Boundary
 
-The reusable kit defines the operating pattern. Each repository still owns:
+The reusable kit defines the operating pattern, including lifecycle, topology, handoff expectations, and final accountability. Each repository still owns:
 
 - exact workflow implementations
 - stack-specific commands

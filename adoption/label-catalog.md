@@ -1,6 +1,6 @@
 # Label Catalog
 
-This catalog distinguishes lifecycle labels from optional supporting labels.
+This catalog distinguishes lifecycle labels from optional supporting labels, including execution topology and role-routing labels.
 
 ## Required Lifecycle Labels
 
@@ -17,10 +17,16 @@ These labels express execution state and should be present in any repository ado
 
 ## Common Supporting Labels
 
-These labels are optional and repository-specific:
+These labels are optional and repository-specific. They are routing and execution hints, not required phases of the lifecycle:
 
 - `needs-details`
   - readiness validation failed or more scope detail is needed
+- `topology:combined`
+  - default combined planner-plus-executor flow within a single execution path
+- `topology:split`
+  - separate planner and executor roles are expected
+- `topology:specialized`
+  - multiple specialized agent roles are expected with explicit handoffs
 - `agent-builder`
   - routes implementation work to a builder agent or automation
 - `agent-planner`
@@ -51,7 +57,9 @@ Examples:
 ## Guidance
 
 - keep lifecycle labels stable and few in number
-- use supporting labels only when they serve automation or routing
+- treat topology labels as optional routing signals, not lifecycle states
+- treat role-routing labels as optional ownership or routing hints, not a mandated planner-to-builder-to-verifier-to-integrator sequence
+- use role-routing labels only when they serve visible automation or delegation
 - treat `hold` and `needs-human` as interrupt controls, not lifecycle states
-- do not use taxonomy labels as a substitute for execution state
+- do not use taxonomy labels as a substitute for execution state or topology
 - document any repository-specific additions in the local project adapter
