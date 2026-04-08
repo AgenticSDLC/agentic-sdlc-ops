@@ -1,0 +1,14 @@
+name: Issue PR State Sync Example
+
+on:
+  pull_request:
+    types: [ready_for_review, closed]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync issue labels from PR lifecycle
+        run: |
+          echo "Example workflow only"
+          echo "Implement repository-specific issue linkage and state transitions."

@@ -1,0 +1,20 @@
+name: Draft PR Bootstrapper Example
+
+on:
+  issues:
+    types: [labeled]
+  push:
+    branches:
+      - 'issue-*'
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bootstrap branch or draft PR
+        run: |
+          echo "Example workflow only"
+          echo "Implement repository-specific branch creation and draft PR behavior."

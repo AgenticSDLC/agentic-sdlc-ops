@@ -1,0 +1,18 @@
+name: Issue Readiness Validator Example
+
+on:
+  issues:
+    types: [labeled, edited]
+
+jobs:
+  validate:
+    if: github.event.label.name == 'ready-for-build'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate issue structure
+        run: |
+          echo "Example workflow only"
+          echo "Implement repository-specific checks for required issue sections and labels."
