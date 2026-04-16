@@ -51,6 +51,8 @@ Examples:
 - issue has passed readiness validation and is assigned
 - issue has both `agent-builder` and `in-progress`
 
+If a repository uses topology modes or topology labels, document how they interact with the execution start condition. Topology selection must not replace lifecycle state.
+
 ### `plan_visibility_mode`
 
 State where the preflight plan must be posted before implementation proceeds.
@@ -87,6 +89,9 @@ Include:
 - lifecycle order
 - meaning of each state label
 - optional supporting labels used by automation or routing
+- whether the repository uses topology mode names such as `combined`, `split`, and `specialized`
+- whether the repository encodes topology selection through optional labels such as `topology:combined`, `topology:split`, and `topology:specialized`
+- whether role-routing labels are optional ownership hints, routing hints, or both
 
 ### `branch_naming`
 
@@ -152,6 +157,11 @@ Examples:
 - deployment previews
 - plan-posting automation
 - hold-signal detection
+
+If the repository supports split or specialized execution, also document:
+
+- the visible handoff artifact expected between roles
+- the visible execution owner responsible for final verification status and lifecycle advancement
 
 ### `stop_and_ask_conditions`
 

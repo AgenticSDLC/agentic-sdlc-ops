@@ -1,10 +1,10 @@
 # Label Catalog
 
-This catalog distinguishes lifecycle labels from optional supporting labels, including execution topology and role-routing labels.
+This catalog distinguishes lifecycle labels from optional supporting labels, including execution topology labels such as `topology:combined` or `topology:split` and role-routing labels such as `agent-planner` or `agent-builder`.
 
 ## Required Lifecycle Labels
 
-These labels express execution state and should be present in any repository adopting this model:
+These labels express execution state and are required in any repository adopting this model:
 
 - `ready-for-build`
   - issue scope is ready for executable validation
@@ -58,6 +58,8 @@ Examples:
 
 - keep lifecycle labels stable and few in number
 - treat topology labels as optional routing signals, not lifecycle states
+- an issue may have zero or one topology label at a time
+- if no topology label is present, assume the `combined` topology mode unless the repository defines another default
 - treat role-routing labels as optional ownership or routing hints, not a mandated planner-to-builder-to-verifier-to-integrator sequence
 - use role-routing labels only when they serve visible automation or delegation
 - treat `hold` and `needs-human` as interrupt controls, not lifecycle states

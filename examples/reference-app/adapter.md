@@ -28,10 +28,17 @@ Lifecycle:
 Supporting labels used by the current workflow:
 
 - `needs-details`
+- `topology:combined`
 - `agent-builder`
 - `agent-planner`
 - `agent-verifier`
 - `agent-integrator`
+
+Topology mode:
+
+- default topology mode is `combined`
+- the repository encodes that default with the optional supporting label `topology:combined`
+- role labels are optional routing hints used by automation; they are not required lifecycle phases
 
 ## Branch Naming
 
@@ -77,6 +84,11 @@ This reference app workflow uses automation for:
 - readiness validation when `ready-for-build` is applied
 - branch and draft PR bootstrap when `in-progress` is applied or the first push lands on the issue branch
 - issue and PR state synchronization during review and merge
+
+Visible coordination rules for non-combined flows:
+
+- if the repository later adopts `topology:split` or `topology:specialized`, the visible preflight plan remains the default execution contract unless the adapter documents a separate handoff artifact
+- one visible execution owner must be defined for the stage that advances lifecycle state, even when supporting roles contribute planning, verification, or integration work
 
 ## Stop-And-Ask Conditions
 

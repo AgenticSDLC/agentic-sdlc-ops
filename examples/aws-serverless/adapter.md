@@ -27,10 +27,13 @@ Lifecycle:
 
 Supporting labels may include:
 
+- `topology:combined`
 - `agent-builder`
 - `infra`
 - `data-platform`
 - `migration-risk`
+
+If the repository later adopts split or specialized execution, document whether topology is tracked as a mode only or also encoded with optional labels such as `topology:split` and `topology:specialized`. Keep those labels separate from lifecycle state.
 
 ## Branch Naming
 
@@ -74,6 +77,8 @@ Typical automation hooks may include:
 - branch bootstrap
 - PR state sync
 - preview deployment or plan generation
+
+If split or specialized execution is enabled, also document the visible handoff artifact between roles and the visible execution owner that can advance lifecycle state after verification.
 
 ## Stop-And-Ask Conditions
 

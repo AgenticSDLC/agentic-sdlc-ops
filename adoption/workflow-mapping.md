@@ -29,9 +29,11 @@ Purpose:
 Typical behavior:
 
 - treat `combined` as the default topology unless the repository defines another default
+- if no topology label or rule is present, execution MUST default to `combined`
 - use supporting labels or repository rules to select `split` or `specialized` when needed
 - keep topology routing visible and simple enough for humans to reason about
 - treat topology choice as an execution strategy layered on top of the same lifecycle, not as a separate workflow state machine
+- treat `combined`, `split`, and `specialized` as topology mode names; when a repository chooses to encode them as labels, use optional supporting labels such as `topology:combined`, `topology:split`, and `topology:specialized`
 
 Typical topology meanings:
 
@@ -69,6 +71,7 @@ Typical behavior:
 - or require the PR description to expose the plan before review
 - optionally verify plan presence before later lifecycle transitions
 - when topology is `split` or `specialized`, require a visible handoff artifact before the next role begins work
+- when topology is `split` or `specialized`, downstream roles MUST NOT proceed without a valid execution contract
 - use the same visible plan artifact as the source of truth unless a repository has a documented reason to split plan and handoff artifacts
 
 Typical contract contents:
@@ -85,12 +88,16 @@ Typical contract contents:
 Purpose:
 
 - create a draft PR after the issue branch has real commits ahead of the base branch
+- preserve issue-first coordination before code exists while moving active implementation steering into the PR once code is visible
 
 Typical behavior:
 
+- keep readiness validation, topology selection, and pre-code planning or handoff artifacts on the issue before the first implementation commit
 - link the source issue in the PR body
 - initialize a standard PR template
 - keep the PR in draft until verification and review are appropriate
+- once the PR exists, prefer the PR as the main steering surface for implementation, verification, and review activity
+- do not rely on the PR as the first visible record of split or specialized execution; pre-code role coordination must remain visible on the issue
 
 ## PR And Issue State Sync
 
@@ -129,6 +136,7 @@ Typical behavior:
 - require each role to leave a visible artifact for the next role
 - keep handoff state in the issue or PR thread rather than in hidden agent memory
 - prevent later roles from proceeding when the required handoff artifact is missing or invalid
+- subsequent roles MUST NOT proceed if required handoff artifacts are missing or invalid
 - require re-planning when a human changes scope or approach mid-execution
 
 Typical handoff expectations:
@@ -147,14 +155,16 @@ Typical handoff contents:
 
 Purpose:
 
-- ensure one visible actor is accountable for final verification status and lifecycle advancement
+- ensure one visible execution owner is accountable for final verification status and lifecycle advancement
 - avoid ambiguous ownership when multiple agents participate
 
 Typical behavior:
 
-- assign one agent, workflow, or automation identity to decide whether required verification has passed
-- require that accountable actor to post the final completion or blocker status in the visible issue or PR surface
-- prevent issue or PR lifecycle advancement when that ownership is unclear
+- assign one visible execution owner for each issue or PR stage that can advance lifecycle state
+- allow that visible execution owner to be implemented by an agent, workflow, or automation identity, but keep the ownership legible in the issue or PR control surface
+- require that visible execution owner to decide whether required verification has passed and to post the final completion or blocker status in the visible issue or PR surface
+- prevent issue or PR lifecycle advancement when the visible execution owner for that stage is unclear
+- if no visible execution owner is defined, execution MUST pause and request clarification before proceeding
 - allow supporting roles to contribute evidence without changing the final accountability rule
 
 ## Verification Mapping

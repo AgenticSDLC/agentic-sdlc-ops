@@ -38,6 +38,8 @@ Examples:
 - PR description
 - both issue comment and PR description
 
+If the repository uses split or specialized execution, document whether this same visible plan artifact also serves as the handoff contract or whether a separate visible handoff artifact is required.
+
 ## Human Control Signals
 
 List the comments or labels that should stop, hold, or redirect execution.
@@ -64,6 +66,12 @@ Lifecycle:
 Supporting labels:
 
 - list local supporting labels here
+
+Also document:
+
+- whether the repository uses topology mode names such as `combined`, `split`, and `specialized`
+- whether topology is encoded with optional labels such as `topology:combined`, `topology:split`, and `topology:specialized`
+- whether role labels are optional routing hints, ownership hints, or both
 
 ## Branch Naming
 
@@ -101,6 +109,11 @@ List the automation workflows that participate in the issue lifecycle.
 - PR state sync
 - plan posting or visibility check
 - hold-signal detection
+
+If the repository supports split or specialized execution, also document:
+
+- the visible handoff artifact required between roles
+- the visible execution owner responsible for final verification status and lifecycle advancement
 
 ## Stop-And-Ask Conditions
 
