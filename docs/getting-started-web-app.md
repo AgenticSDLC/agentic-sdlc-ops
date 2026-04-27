@@ -144,6 +144,37 @@ agentic-sdlc doctor
 
 This does not imply GitHub Actions or a GitHub runner is executing the task. By default, GitHub is the control plane and execution remains local.
 
+## Publish The First Issue
+
+Once the overlay is installed, publish a local draft into GitHub with:
+
+```sh
+agentic-sdlc issue publish --draft pilot-web-app-flow
+```
+
+This should:
+
+- read `.agentic/issues/drafts/pilot-web-app-flow.md`
+- create the GitHub issue
+- ensure the standard label set exists
+- apply default initial labels:
+  - `ready-for-build`
+  - `topology:combined`
+  - `agent-builder`
+  - `frontend`
+
+If you want to start the issue in a different lifecycle state or add routing labels explicitly, use overrides such as:
+
+```sh
+agentic-sdlc issue publish --draft add-dummy-page --state in-progress --label full-stack
+```
+
+Use `--dry-run` when you want to inspect the resolved title and labels without creating the issue:
+
+```sh
+agentic-sdlc issue publish --draft add-dummy-page --dry-run
+```
+
 ## Validation Modes
 
 The generated adapter should make validation mode explicit.

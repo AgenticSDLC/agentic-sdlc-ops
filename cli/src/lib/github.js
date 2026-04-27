@@ -1,3 +1,6 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const { execFileSync } = require("child_process");
 const { STANDARD_LABELS } = require("../profile-web-app");
 
@@ -40,6 +43,14 @@ function ghJson(args, rootDir) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(output);
+}
+
+function ghText(args, rootDir) {
+  return execFileSync("gh", args, {
+    cwd: rootDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 }
 
 function listRepoLabels(rootDir, repoSlug) {
@@ -163,8 +174,38 @@ function checkStandardLabels(rootDir) {
   }
 }
 
+function createIssue(rootDir, options) {
+  const { title, body, labels = [] } = options;
+  const repoSlug = getGitHubRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error("No GitHub origin remote detected. Connect the repository before publishing an issue.");
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentic-sdlc-issue-"));
+  const bodyPath = path.join(tempDir, "issue-body.md");
+  fs.writeFileSync(bodyPath, body, "utf8");
+
+  try {
+    const args = ["issue", "create", "--repo", repoSlug, "--title", title, "--body-file", bodyPath];
+    for (const label of labels) {
+      args.push("--label", label);
+    }
+
+    const issueUrl = ghText(args, rootDir);
+    const issue = ghJson(["issue", "view", issueUrl, "--repo", repoSlug, "--json", "number,url,title,labels,state"], rootDir);
+
+    return {
+      repoSlug,
+      issue,
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 module.exports = {
   checkStandardLabels,
+  createIssue,
   getGitHubRepoSlug,
   syncStandardLabels,
 };

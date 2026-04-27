@@ -94,6 +94,7 @@ A first CLI foundation now exists for the `web-app` profile:
 ```sh
 node cli/index.js init
 node cli/index.js doctor
+node cli/index.js issue publish --draft pilot-web-app-flow
 ```
 
 Current behavior:
@@ -104,6 +105,7 @@ Current behavior:
 - appends a managed overlay block to a weak existing `AGENTS.md` instead of silently skipping guardrails
 - upgrades a legacy generated `.agentic/project-adapter.md` in place and appends a managed adapter block when an older custom adapter is missing current contract sections
 - generates a pilot issue draft for first-run validation
+- publishes a local draft to GitHub as a real issue with standard initial labels
 - runs a post-install doctor pass automatically and also supports standalone `doctor`
 
 Current scope:

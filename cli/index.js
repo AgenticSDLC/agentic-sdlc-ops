@@ -3,6 +3,7 @@
 const { Command } = require("commander");
 const { handleInit } = require("./src/commands/init");
 const { handleDoctor } = require("./src/commands/doctor");
+const { handleIssuePublish } = require("./src/commands/issue-publish");
 
 async function loadChalk() {
   try {
@@ -40,6 +41,7 @@ Examples:
   agentic-sdlc init
   agentic-sdlc init --profile web-app --local-only
   agentic-sdlc doctor
+  agentic-sdlc issue publish --draft pilot-web-app-flow
 `
     );
 
@@ -52,6 +54,11 @@ Examples:
       .option("--mode <mode>", "Override install mode")
       .option("--local-only", "Force local-only install behavior")
       .option("--yes", "Accept defaults for prompts");
+
+  const collectOption = (value, previous) => {
+    previous.push(value);
+    return previous;
+  };
 
   applyCommonOptions(
     program
@@ -73,6 +80,22 @@ Examples:
       .action(async (options) => {
         console.log(banner);
         await handleDoctor(options);
+      })
+  );
+
+  const issue = program.command("issue").description("Publish and manage issue-first work items");
+  applyCommonOptions(
+    issue
+      .command("publish")
+      .description("Create a GitHub issue from a local draft and apply initial labels")
+      .requiredOption("--draft <name-or-path>", "Draft file name or path")
+      .option("--state <label>", "Initial lifecycle label", "ready-for-build")
+      .option("--label <name>", "Additional label. Repeat or comma-separate values", collectOption, [])
+      .option("--no-default-labels", "Skip the standard initial labels")
+      .option("--dry-run", "Show the resolved draft and labels without creating the issue")
+      .action(async (options) => {
+        console.log(banner);
+        await handleIssuePublish(options);
       })
   );
 
