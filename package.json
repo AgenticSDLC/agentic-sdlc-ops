@@ -1,0 +1,16 @@
+{
+  "name": "agentic-sdlc-ops",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.4",
+  "bin": {
+    "agentic-sdlc": "cli/index.js"
+  },
+  "scripts": {
+    "cli:help": "node cli/index.js --help"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3"
+  }
+}

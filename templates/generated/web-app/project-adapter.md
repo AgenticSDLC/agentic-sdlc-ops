@@ -1,6 +1,4 @@
-# Web App Adapter Example
-
-This example shows the recommended generated default for the `web-app` profile when used for a customer-facing storefront.
+# Project Adapter
 
 ## Project Type
 
@@ -12,6 +10,11 @@ This example shows the recommended generated default for the `web-app` profile w
 - Requirements
 - Acceptance Criteria
 - Target Files
+
+## Issue Draft Location
+
+- optional local drafts in `.agentic/issues/drafts/`
+- live GitHub Issues remain the source of truth after publication
 
 ## Execution Start Condition
 
@@ -48,7 +51,7 @@ Lifecycle:
 - `in-review`
 - `done`
 
-Supporting labels may include:
+Supporting labels:
 
 - `topology:combined`
 - `topology:split`
@@ -58,11 +61,8 @@ Supporting labels may include:
 - `full-stack`
 - `config-only`
 - `docs-only`
-- `needs-details`
 - `hold`
 - `needs-human`
-
-If the repository later adopts split or specialized execution, document whether topology is tracked as a mode only or also encoded with optional labels such as `topology:split` and `topology:specialized`. Keep those labels separate from lifecycle state.
 
 ## Branch Naming
 
@@ -70,20 +70,11 @@ If the repository later adopts split or specialized execution, document whether 
 
 ## Required Pre-Read Docs
 
-- `README.md`
-- architecture overview if present
-- design system or UI constraints if present
-- commerce constraints if present
-- local workflow documentation if present
+{{required_pre_read_docs}}
 
 ## Verification Commands
 
-Recommended default storefront verification:
-
-- lint
-- production build
-- task-relevant automated tests
-- browser smoke tests for navigation, forms, cart, checkout, account, or pricing presentation changes
+{{verification_commands}}
 
 ## User-Visible Change Policy
 
@@ -96,28 +87,23 @@ Recommended default storefront verification:
 - screenshots
 - verification summary
 - trace or video for browser automation
-- preview deployment link
+- preview deployment link if available
 
 ## Automation Hooks
 
-Typical automation hooks may include:
-
 - issue readiness validation
-- branch bootstrap
-- draft PR creation
-- PR state synchronization
-
-If split or specialized execution is enabled, also document the visible handoff artifact between roles and the visible execution owner that can advance lifecycle state after verification.
+- draft PR bootstrapper
+- issue and PR state sync
 
 ## Stop-And-Ask Conditions
 
-- authentication model changes
+- authentication or session model changes
 - billing or payment provider changes
 - tax, shipping, fulfillment, or refund behavior changes not explicitly scoped in the issue
 - PII collection, retention, or deletion behavior changes
 - checkout flow changes beyond the scoped acceptance criteria
-- architectural changes beyond the issue contract
+- architectural changes beyond the named subsystem
 
 ## Repo-Specific Constraints
 
-Keep framework and hosting assumptions local. Do not place them in the portable standard.
+- keep framework and hosting assumptions local
