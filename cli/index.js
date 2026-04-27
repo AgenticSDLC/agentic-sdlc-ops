@@ -4,6 +4,7 @@ const { Command } = require("commander");
 const { handleInit } = require("./src/commands/init");
 const { handleDoctor } = require("./src/commands/doctor");
 const { handleIssuePublish } = require("./src/commands/issue-publish");
+const { handleIssueTransition } = require("./src/commands/issue-transition");
 
 async function loadChalk() {
   try {
@@ -41,7 +42,8 @@ Examples:
   agentic-sdlc init
   agentic-sdlc init --profile web-app --local-only
   agentic-sdlc doctor
-  agentic-sdlc issue publish --draft pilot-web-app-flow
+  agentic-sdlc issue publish --draft pilot-web-app-combined
+  agentic-sdlc issue transition --issue 12 --state in-progress
 `
     );
 
@@ -90,12 +92,26 @@ Examples:
       .description("Create a GitHub issue from a local draft and apply initial labels")
       .requiredOption("--draft <name-or-path>", "Draft file name or path")
       .option("--state <label>", "Initial lifecycle label", "ready-for-build")
+      .option("--topology <mode>", "Topology label override: combined or split")
       .option("--label <name>", "Additional label. Repeat or comma-separate values", collectOption, [])
       .option("--no-default-labels", "Skip the standard initial labels")
       .option("--dry-run", "Show the resolved draft and labels without creating the issue")
       .action(async (options) => {
         console.log(banner);
         await handleIssuePublish(options);
+      })
+  );
+  applyCommonOptions(
+    issue
+      .command("transition")
+      .description("Move an issue through the standard lifecycle labels")
+      .requiredOption("--issue <number>", "Issue number")
+      .requiredOption("--state <label>", "Lifecycle label: ready-for-build, in-progress, in-review, done")
+      .option("--label <name>", "Additional label. Repeat or comma-separate values", collectOption, [])
+      .option("--remove-label <name>", "Additional label to remove. Repeat or comma-separate values", collectOption, [])
+      .action(async (options) => {
+        console.log(banner);
+        await handleIssueTransition(options);
       })
   );
 

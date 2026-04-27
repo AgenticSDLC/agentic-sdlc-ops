@@ -24,7 +24,9 @@ function uniqueLabels(labels) {
 
 function getDefaultIssueLabels(config, options) {
   const lifecycle = options.state || "ready-for-build";
-  const topology = config.topology === "split" ? "topology:split" : "topology:combined";
+  const topology = options.topology === "split" || config.topology === "split"
+    ? "topology:split"
+    : "topology:combined";
   return [lifecycle, topology, "agent-builder", "frontend"];
 }
 

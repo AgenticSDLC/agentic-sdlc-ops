@@ -102,8 +102,15 @@ function generateOverlay(config, rootDir) {
     }
   );
 
-  const seedIssue = renderTemplate(
-    loadTemplate("templates", "generated", "web-app", "seed-issue.md"),
+  const combinedSeedIssue = renderTemplate(
+    loadTemplate("templates", "generated", "web-app", "seed-issue-combined.md"),
+    {
+      repository_name: config.repositoryName,
+      build_command: config.verification.build,
+    }
+  );
+  const splitSeedIssue = renderTemplate(
+    loadTemplate("templates", "generated", "web-app", "seed-issue-split.md"),
     {
       repository_name: config.repositoryName,
       build_command: config.verification.build,
@@ -181,8 +188,13 @@ function generateOverlay(config, rootDir) {
 
   if (config.seedIssue) {
     writeManagedFile(
-      path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-flow.md"),
-      seedIssue,
+      path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-combined.md"),
+      combinedSeedIssue,
+      summary
+    );
+    writeManagedFile(
+      path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-split.md"),
+      splitSeedIssue,
       summary
     );
   }

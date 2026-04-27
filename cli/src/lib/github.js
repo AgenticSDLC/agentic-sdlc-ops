@@ -3,6 +3,7 @@ const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { STANDARD_LABELS } = require("../profile-web-app");
+const LIFECYCLE_LABELS = ["ready-for-build", "in-progress", "in-review", "done"];
 
 function parseGitHubRepo(remoteUrl) {
   if (!remoteUrl) {
@@ -137,6 +138,11 @@ function syncStandardLabels(rootDir) {
       status: "unavailable",
       repoSlug,
       reason: message,
+      remediation: [
+        "Confirm `gh auth status` succeeds for the target GitHub account.",
+        "Confirm the repository origin points at GitHub and is reachable.",
+        "Rerun `agentic-sdlc init` after `gh` authentication is fixed.",
+      ],
       created: [],
       updated: [],
       skipped: [],
@@ -170,8 +176,65 @@ function checkStandardLabels(rootDir) {
       repoSlug,
       missing: [],
       reason: message,
+      remediation: [
+        "Confirm `gh auth status` succeeds for the target GitHub account.",
+        "Confirm the repository origin points at GitHub and is reachable.",
+      ],
     };
   }
+}
+
+function updateIssueLifecycle(rootDir, options) {
+  const { issue, nextState, addLabels = [], removeLabels = [] } = options;
+  const repoSlug = getGitHubRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error("No GitHub origin remote detected. Connect the repository before updating issue labels.");
+  }
+
+  if (!LIFECYCLE_LABELS.includes(nextState)) {
+    throw new Error(`Unsupported lifecycle state \`${nextState}\`.`);
+  }
+
+  const issueData = ghJson(
+    ["issue", "view", String(issue), "--repo", repoSlug, "--json", "number,url,title,labels,state"],
+    rootDir
+  );
+  const currentLabels = issueData.labels.map((label) => label.name);
+  const nextLabels = new Set(currentLabels.filter((label) => !LIFECYCLE_LABELS.includes(label)));
+  nextLabels.add(nextState);
+
+  for (const label of addLabels) {
+    nextLabels.add(label);
+  }
+  for (const label of removeLabels) {
+    nextLabels.delete(label);
+  }
+
+  execFileSync(
+    "gh",
+    [
+      "issue",
+      "edit",
+      String(issue),
+      "--repo",
+      repoSlug,
+      "--remove-label",
+      LIFECYCLE_LABELS.join(","),
+      "--add-label",
+      [...nextLabels].join(","),
+    ],
+    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+  );
+
+  const updatedIssue = ghJson(
+    ["issue", "view", String(issue), "--repo", repoSlug, "--json", "number,url,title,labels,state"],
+    rootDir
+  );
+
+  return {
+    repoSlug,
+    issue: updatedIssue,
+  };
 }
 
 function createIssue(rootDir, options) {
@@ -208,4 +271,5 @@ module.exports = {
   createIssue,
   getGitHubRepoSlug,
   syncStandardLabels,
+  updateIssueLifecycle,
 };

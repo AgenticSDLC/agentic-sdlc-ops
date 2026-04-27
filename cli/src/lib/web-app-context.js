@@ -401,7 +401,8 @@ function collectOverlayStatus(rootDir) {
     adapter: path.join(rootDir, ".agentic", "project-adapter.md"),
     issueTemplate: path.join(rootDir, ".github", "ISSUE_TEMPLATE", "agentic-task.md"),
     prTemplate: path.join(rootDir, ".github", "pull_request_template.md"),
-    seedIssue: path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-flow.md"),
+    combinedSeedIssue: path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-combined.md"),
+    splitSeedIssue: path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-split.md"),
   };
 
   const agentsExists = fs.existsSync(files.agents);
@@ -414,9 +415,11 @@ function collectOverlayStatus(rootDir) {
     files,
     missingRequired: Object.entries(files)
       .filter(([name]) => name !== "seedIssue")
+      .filter(([name]) => name !== "combinedSeedIssue" && name !== "splitSeedIssue")
       .filter(([, filePath]) => !fs.existsSync(filePath))
       .map(([name]) => name),
-    hasSeedIssue: fs.existsSync(files.seedIssue),
+    hasCombinedSeedIssue: fs.existsSync(files.combinedSeedIssue),
+    hasSplitSeedIssue: fs.existsSync(files.splitSeedIssue),
     agentsContractStrong: agentsExists && hasMinimumAgentsContract(agentsContents),
     hasManagedAgentsBlock,
     adapterContractStrong: adapterExists && hasMinimumAdapterContract(adapterContents),

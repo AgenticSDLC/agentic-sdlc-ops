@@ -154,7 +154,7 @@ agentic-sdlc issue publish --draft pilot-web-app-flow
 
 This should:
 
-- read `.agentic/issues/drafts/pilot-web-app-flow.md`
+- read a draft such as `.agentic/issues/drafts/pilot-web-app-combined.md`
 - create the GitHub issue
 - ensure the standard label set exists
 - apply default initial labels:
@@ -166,6 +166,7 @@ This should:
 If you want to start the issue in a different lifecycle state or add routing labels explicitly, use overrides such as:
 
 ```sh
+agentic-sdlc issue publish --draft pilot-web-app-split --topology split
 agentic-sdlc issue publish --draft add-dummy-page --state in-progress --label full-stack
 ```
 
@@ -206,6 +207,35 @@ Recommended minimum:
 
 If Playwright is not configured, `doctor` should warn even if lint and build pass.
 
+## Pilot Issues And Lifecycle
+
+`init` now generates two pilot drafts so both default topologies can be proven quickly:
+
+- `.agentic/issues/drafts/pilot-web-app-combined.md`
+- `.agentic/issues/drafts/pilot-web-app-split.md`
+
+Recommended proving order:
+
+1. publish the combined pilot
+2. move it from `ready-for-build` to `in-progress`
+3. post the preflight plan
+4. complete the PR-sized change
+5. move it to `in-review`
+6. merge only after the repository's configured validation mode is satisfied
+7. move it to `done`
+
+Lifecycle movement should not require manual label editing anymore:
+
+```sh
+agentic-sdlc issue transition --issue 12 --state in-progress
+agentic-sdlc issue transition --issue 12 --state in-review
+agentic-sdlc issue transition --issue 12 --state done
+```
+
+This scripts the lifecycle label swap while preserving non-lifecycle labels such as `topology:combined`, `frontend`, or `full-stack`.
+
+If validation mode is still `local-only`, treat merge as a local bootstrap proof only. User-visible repositories should add CI, preview deploys, and human QA before relying on auto-merge behavior.
+
 Common next steps:
 
 - Vercel
@@ -223,7 +253,8 @@ The CLI should create:
 - `.agentic/project-adapter.md`
 - `.github/ISSUE_TEMPLATE/agentic-task.md`
 - `.github/pull_request_template.md`
-- `.agentic/issues/drafts/pilot-web-app-flow.md`
+- `.agentic/issues/drafts/pilot-web-app-combined.md`
+- `.agentic/issues/drafts/pilot-web-app-split.md`
 
 When GitHub is connected, the CLI should also create or update the standard labels:
 

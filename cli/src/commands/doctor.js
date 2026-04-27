@@ -82,8 +82,10 @@ function assessDoctor(rootDir, args) {
     }
   }
 
-  if (!overlay.hasSeedIssue) {
-    findings.push("Pilot issue draft is missing at `.agentic/issues/drafts/pilot-web-app-flow.md`.");
+  if (!overlay.hasCombinedSeedIssue || !overlay.hasSplitSeedIssue) {
+    findings.push(
+      "Pilot issue drafts are incomplete. Expected both `.agentic/issues/drafts/pilot-web-app-combined.md` and `.agentic/issues/drafts/pilot-web-app-split.md`."
+    );
     if (state === "pass") {
       state = "warning";
     }
