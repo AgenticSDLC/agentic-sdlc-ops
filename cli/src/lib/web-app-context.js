@@ -127,6 +127,19 @@ function hasMinimumAgentsContract(contents) {
   return requiredMarkers.every((marker) => contents.includes(marker));
 }
 
+function hasMinimumAdapterContract(contents) {
+  const requiredMarkers = [
+    "# Project Adapter",
+    "## Browser Validation",
+    "## Validation Mode",
+    "## Preview Deployment",
+    "## Human QA Gate",
+    "## User-Visible Change Policy",
+  ];
+
+  return requiredMarkers.every((marker) => contents.includes(marker));
+}
+
 function detectGitHubReady(rootDir) {
   const gitConfig = path.join(rootDir, ".git", "config");
   if (!fs.existsSync(gitConfig)) {
@@ -394,6 +407,8 @@ function collectOverlayStatus(rootDir) {
   const agentsExists = fs.existsSync(files.agents);
   const agentsContents = agentsExists ? fs.readFileSync(files.agents, "utf8") : "";
   const hasManagedAgentsBlock = agentsContents.includes("BEGIN AGENTIC-SDLC MANAGED BLOCK");
+  const adapterExists = fs.existsSync(files.adapter);
+  const adapterContents = adapterExists ? fs.readFileSync(files.adapter, "utf8") : "";
 
   return {
     files,
@@ -404,15 +419,17 @@ function collectOverlayStatus(rootDir) {
     hasSeedIssue: fs.existsSync(files.seedIssue),
     agentsContractStrong: agentsExists && hasMinimumAgentsContract(agentsContents),
     hasManagedAgentsBlock,
+    adapterContractStrong: adapterExists && hasMinimumAdapterContract(adapterContents),
+    hasManagedAdapterBlock: adapterContents.includes("BEGIN AGENTIC-SDLC PROJECT ADAPTER"),
     adapterLooksLikeWebApp:
-      fs.existsSync(files.adapter) &&
-      fs.readFileSync(files.adapter, "utf8").includes("- web application"),
+      adapterExists && adapterContents.includes("- web application"),
   };
 }
 
 module.exports = {
   buildConfig,
   collectOverlayStatus,
+  hasMinimumAdapterContract,
   detectPackageManager,
   detectPlaywrightSupport,
   detectFramework,

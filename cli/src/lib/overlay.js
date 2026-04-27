@@ -2,10 +2,34 @@ const fs = require("fs");
 const path = require("path");
 const { ensureDirectory, updateManagedFile, writeManagedFile } = require("./files");
 const { loadTemplate, renderTemplate } = require("./templates");
-const { hasMinimumAgentsContract } = require("./web-app-context");
+const { hasMinimumAgentsContract, hasMinimumAdapterContract } = require("./web-app-context");
 
 const AGENTS_BLOCK_START = "<!-- BEGIN AGENTIC-SDLC MANAGED BLOCK -->";
 const AGENTS_BLOCK_END = "<!-- END AGENTIC-SDLC MANAGED BLOCK -->";
+const ADAPTER_BLOCK_START = "<!-- BEGIN AGENTIC-SDLC PROJECT ADAPTER -->";
+const ADAPTER_BLOCK_END = "<!-- END AGENTIC-SDLC PROJECT ADAPTER -->";
+const LEGACY_ADAPTER_HEADINGS = new Set([
+  "# Project Adapter",
+  "## Project Type",
+  "## Issue Required Sections",
+  "## Issue Draft Location",
+  "## Execution Start Condition",
+  "## Plan Visibility Mode",
+  "## Human Control Signals",
+  "## State Labels",
+  "## Branch Naming",
+  "## Required Pre-Read Docs",
+  "## Verification Commands",
+  "## Browser Validation",
+  "## Validation Mode",
+  "## Preview Deployment",
+  "## Human QA Gate",
+  "## User-Visible Change Policy",
+  "## Evidence Requirements",
+  "## Automation Hooks",
+  "## Stop-And-Ask Conditions",
+  "## Repo-Specific Constraints",
+]);
 
 function listToBullets(items, code = false) {
   if (!items.length) {
@@ -15,6 +39,36 @@ function listToBullets(items, code = false) {
   return items
     .map((item) => (code ? `- \`${item}\`` : `- ${item}`))
     .join("\n");
+}
+
+function wrapManagedBlock(start, end, contents) {
+  return `${start}\n${contents}\n${end}\n`;
+}
+
+function replaceManagedBlock(contents, start, end, nextManagedContents) {
+  return contents.replace(
+    new RegExp(`${start}[\\s\\S]*?${end}`),
+    wrapManagedBlock(start, end, nextManagedContents).trimEnd()
+  );
+}
+
+function extractMarkdownHeadings(contents) {
+  return contents
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("#"));
+}
+
+function looksLikeLegacyGeneratedAdapter(contents) {
+  const headings = extractMarkdownHeadings(contents);
+  return (
+    headings.length >= 8 &&
+    headings.includes("# Project Adapter") &&
+    headings.includes("## Project Type") &&
+    headings.includes("## Verification Commands") &&
+    headings.includes("## Stop-And-Ask Conditions") &&
+    headings.every((heading) => LEGACY_ADAPTER_HEADINGS.has(heading))
+  );
 }
 
 function generateOverlay(config, rootDir) {
@@ -65,9 +119,11 @@ function generateOverlay(config, rootDir) {
     if (hasMinimumAgentsContract(existingAgents)) {
       summary.skipped.push(path.relative(summary.rootDir, agentsPath));
     } else if (existingAgents.includes(AGENTS_BLOCK_START) && existingAgents.includes(AGENTS_BLOCK_END)) {
-      const nextContents = existingAgents.replace(
-        new RegExp(`${AGENTS_BLOCK_START}[\\s\\S]*?${AGENTS_BLOCK_END}`),
-        `${AGENTS_BLOCK_START}\n${agentsTemplate}\n${AGENTS_BLOCK_END}`
+      const nextContents = replaceManagedBlock(
+        existingAgents,
+        AGENTS_BLOCK_START,
+        AGENTS_BLOCK_END,
+        agentsTemplate
       );
       updateManagedFile(agentsPath, nextContents, summary);
     } else {
@@ -75,7 +131,42 @@ function generateOverlay(config, rootDir) {
       updateManagedFile(agentsPath, merged, summary);
     }
   }
-  writeManagedFile(path.join(rootDir, ".agentic", "project-adapter.md"), projectAdapter, summary);
+
+  const adapterPath = path.join(rootDir, ".agentic", "project-adapter.md");
+  if (!fs.existsSync(adapterPath)) {
+    writeManagedFile(
+      adapterPath,
+      wrapManagedBlock(ADAPTER_BLOCK_START, ADAPTER_BLOCK_END, projectAdapter),
+      summary
+    );
+  } else {
+    const existingAdapter = fs.readFileSync(adapterPath, "utf8");
+    if (existingAdapter.includes(ADAPTER_BLOCK_START) && existingAdapter.includes(ADAPTER_BLOCK_END)) {
+      const nextContents = replaceManagedBlock(
+        existingAdapter,
+        ADAPTER_BLOCK_START,
+        ADAPTER_BLOCK_END,
+        projectAdapter
+      );
+      updateManagedFile(adapterPath, nextContents, summary);
+    } else if (looksLikeLegacyGeneratedAdapter(existingAdapter)) {
+      updateManagedFile(
+        adapterPath,
+        wrapManagedBlock(ADAPTER_BLOCK_START, ADAPTER_BLOCK_END, projectAdapter),
+        summary
+      );
+    } else if (hasMinimumAdapterContract(existingAdapter)) {
+      summary.skipped.push(path.relative(summary.rootDir, adapterPath));
+    } else {
+      const merged = `${existingAdapter.trimEnd()}\n\n${wrapManagedBlock(
+        ADAPTER_BLOCK_START,
+        ADAPTER_BLOCK_END,
+        projectAdapter
+      )}`;
+      updateManagedFile(adapterPath, merged, summary);
+    }
+  }
+
   writeManagedFile(
     path.join(rootDir, ".github", "ISSUE_TEMPLATE", "agentic-task.md"),
     loadTemplate("templates", "issue-template.md"),
@@ -101,6 +192,8 @@ function generateOverlay(config, rootDir) {
 
 module.exports = {
   generateOverlay,
+  ADAPTER_BLOCK_END,
+  ADAPTER_BLOCK_START,
   AGENTS_BLOCK_END,
   AGENTS_BLOCK_START,
 };

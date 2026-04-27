@@ -73,6 +73,15 @@ function assessDoctor(rootDir, args) {
     }
   }
 
+  if (!overlay.adapterContractStrong) {
+    findings.push(
+      "Project adapter is missing part of the current web-app contract; rerun `agentic-sdlc init` to merge the latest managed adapter sections."
+    );
+    if (state === "pass") {
+      state = "warning";
+    }
+  }
+
   if (!overlay.hasSeedIssue) {
     findings.push("Pilot issue draft is missing at `.agentic/issues/drafts/pilot-web-app-flow.md`.");
     if (state === "pass") {

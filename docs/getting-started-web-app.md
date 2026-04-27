@@ -125,6 +125,12 @@ If the repository is not connected to GitHub yet, use:
 agentic-sdlc init --local-only
 ```
 
+Rerunning `agentic-sdlc init` should also be safe and useful over time:
+
+- weak existing `AGENTS.md` files are strengthened with a managed overlay block
+- legacy generated project adapters are upgraded in place
+- older custom project adapters keep their local notes and receive an appended managed block when the web-app contract gains new required sections
+
 ## Verify The Overlay
 
 Run:
@@ -206,6 +212,12 @@ When GitHub is connected, the CLI should also create or update the standard labe
 - `needs-human`
 
 If `AGENTS.md` already exists but is weak, `init` should append a managed `agentic-sdlc` block instead of replacing the whole file.
+
+If `.agentic/project-adapter.md` already exists, `init` should not blindly clobber it:
+
+- legacy generated adapters should be upgraded in place
+- adapters that already satisfy the current contract may be preserved
+- older custom adapters missing current sections should receive a managed update block instead of being overwritten
 
 ## Typical Results
 
