@@ -87,6 +87,24 @@ function assessDoctor(rootDir, args) {
     }
   }
 
+  if (config.validationMode === "local-only") {
+    findings.push(
+      "Validation mode is `local-only`: no hosted preview deployment or human QA gate is configured for user-visible changes."
+    );
+    if (state === "pass") {
+      state = "warning";
+    }
+  }
+
+  if (!config.browserValidation.supported) {
+    findings.push(
+      "Playwright is not configured. User-visible web work should include a browser validation command such as `npm run test:e2e`."
+    );
+    if (state === "pass") {
+      state = "warning";
+    }
+  }
+
   if (inspection.githubReady && !args.localOnly) {
     const labels = checkStandardLabels(rootDir);
     if (labels.status === "unavailable") {
@@ -107,6 +125,7 @@ function assessDoctor(rootDir, args) {
       target: rootDir,
       installMode: config.installMode,
       stackPreset: config.stackPreset,
+      validationMode: config.validationMode,
     },
     findings,
   };

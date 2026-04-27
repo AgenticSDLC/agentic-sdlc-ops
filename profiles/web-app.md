@@ -22,6 +22,67 @@ The default `web-app` path does not assume:
 
 Those are optional later additions, not baseline requirements.
 
+## Shared Responsibility Boundary
+
+The `web-app` profile installs and verifies the operating overlay, but it does not own the full delivery stack.
+
+Profile responsibility:
+
+- infer repository type and starter verification
+- install local operating artifacts
+- install or verify GitHub lifecycle labels
+- warn when validation maturity is too low for user-visible work
+
+Repository responsibility:
+
+- configure remote deployment hosting such as Vercel, AWS, or another platform
+- configure CI and required checks
+- configure preview environments when user-visible validation needs them
+- define human QA and approval gates appropriate for the product
+- maintain the environment, secrets, and provider credentials those systems require
+
+This is a deliberate shared-responsibility model, not an incomplete implementation detail.
+
+## Validation Modes
+
+The `web-app` profile should make verification mode explicit.
+
+Supported validation modes:
+
+- `local-only`
+  - lint and build run locally
+  - no hosted preview deployment is required
+  - no human QA gate is enforced before merge
+- `preview-required`
+  - a hosted preview deployment is expected
+  - a human validates the user-visible change against that preview
+  - merge should wait for that review
+- `production-gated`
+  - preview validation is required
+  - an explicit human approval gate is required before merge or deploy
+
+Baseline behavior:
+
+- new `web-app` overlays may start at `local-only`
+- `doctor` should warn when a user-visible repository is still only `local-only`
+- repositories should move to `preview-required` once hosting and preview deploys exist
+
+## Browser Validation Requirement
+
+For `web-app`, browser automation is part of the validation contract.
+
+Baseline expectation:
+
+- Playwright should be configured in the repository
+- a browser validation command such as `test:e2e` should exist
+- user-visible changes should not rely on lint and build alone
+
+At minimum, `doctor` should warn when:
+
+- Playwright is not installed
+- no Playwright config exists
+- no browser validation command is defined
+
 ## Purpose
 
 Use this profile for:

@@ -38,6 +38,13 @@ function generateOverlay(config, rootDir) {
         ],
         true
       ),
+      validation_mode: config.validationMode,
+      preview_provider: config.previewProvider,
+      preview_status: config.previewStatus,
+      human_qa_gate: config.humanQaGate,
+      browser_validation_command: config.browserValidation.command,
+      browser_validation_provider: config.browserValidation.provider,
+      browser_validation_status: config.browserValidation.status,
     }
   );
 

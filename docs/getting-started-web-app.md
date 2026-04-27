@@ -4,6 +4,27 @@ This guide covers the expected path for applying `agentic-sdlc-ops` to a scaffol
 
 This is an overlay workflow. It does not create the app itself.
 
+## Shared Responsibility
+
+Adopting this kit is a shared-responsibility model.
+
+`agentic-sdlc-ops` is responsible for:
+
+- installing the SDLC overlay
+- generating the local execution contract
+- enforcing the issue and PR workflow shape
+- checking for missing repo-level operating pieces
+
+The user or adopting repository is still responsible for:
+
+- choosing and configuring the remote hosting platform
+- setting up CI and required status checks
+- connecting preview deployments for user-visible review
+- defining and enforcing human QA gates
+- maintaining provider credentials, secrets, and cloud access
+
+This distinction matters because a repository can be fully healthy from an overlay perspective while still lacking preview deploys, CI, or hosted human validation.
+
 ## Execution Model
 
 For the default `web-app` path, keep these three concepts separate:
@@ -116,6 +137,46 @@ agentic-sdlc doctor
 `doctor` should verify both the local overlay files and the standard GitHub labels when GitHub is connected.
 
 This does not imply GitHub Actions or a GitHub runner is executing the task. By default, GitHub is the control plane and execution remains local.
+
+## Validation Modes
+
+The generated adapter should make validation mode explicit.
+
+Typical progression:
+
+- `local-only`
+  - local lint and build checks only
+  - suitable for bootstrap and early repo bring-up
+- `preview-required`
+  - preview deployment exists
+  - a human validates the change in the hosted preview before merge
+- `production-gated`
+  - preview validation plus an explicit approval gate before merge or deploy
+
+For user-visible work, `local-only` is a starting point, not the long-term target.
+
+If the repository has no preview deployment yet, `doctor` should warn that human validation is still missing for hosted user-visible review.
+
+That warning is intentional: preview infrastructure and CI are part of the repository's responsibility, not something the overlay can invent automatically.
+
+Playwright should also be treated as part of the baseline web validation contract.
+
+Recommended minimum:
+
+- install `@playwright/test`
+- add a browser validation command such as `npm run test:e2e`
+- use that command in acceptance criteria for user-visible tasks
+
+If Playwright is not configured, `doctor` should warn even if lint and build pass.
+
+Common next steps:
+
+- Vercel
+  - connect the GitHub repo to Vercel
+  - require preview review for user-visible PRs
+- AWS
+  - configure an environment-specific preview or review app path
+  - document the human validation step in the adapter
 
 ## Expected Output
 

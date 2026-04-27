@@ -76,10 +76,38 @@ Supporting labels:
 
 {{verification_commands}}
 
+## Browser Validation
+
+- command: `{{browser_validation_command}}`
+- provider: `{{browser_validation_provider}}`
+- status: `{{browser_validation_status}}`
+
+## Validation Mode
+
+- `{{validation_mode}}`
+
+Validation mode meanings:
+
+- `local-only`
+  - lint and build run locally, with no required hosted preview gate
+- `preview-required`
+  - a preview deploy and human review are expected before merge
+- `production-gated`
+  - preview validation plus explicit human approval is required before merge or deploy
+
+## Preview Deployment
+
+- provider: `{{preview_provider}}`
+- status: `{{preview_status}}`
+
+## Human QA Gate
+
+- `{{human_qa_gate}}`
+
 ## User-Visible Change Policy
 
 - screenshots required for user-visible changes
-- browser smoke coverage required for navigation, forms, cart, checkout, account, or pricing presentation changes
+- Playwright coverage required for navigation, forms, cart, checkout, account, or pricing presentation changes
 - preview link required if preview deployments exist
 
 ## Evidence Requirements

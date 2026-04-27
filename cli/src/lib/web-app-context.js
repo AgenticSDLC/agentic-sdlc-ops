@@ -151,6 +151,66 @@ function classifyAppShape(packageJson) {
   return "storefront";
 }
 
+function detectPreviewProvider(rootDir) {
+  if (
+    fs.existsSync(path.join(rootDir, "vercel.json")) ||
+    fs.existsSync(path.join(rootDir, ".vercel", "project.json"))
+  ) {
+    return "vercel";
+  }
+
+  if (fs.existsSync(path.join(rootDir, "amplify.yml"))) {
+    return "aws-amplify";
+  }
+
+  if (
+    fs.existsSync(path.join(rootDir, "serverless.yml")) ||
+    fs.existsSync(path.join(rootDir, "template.yaml")) ||
+    fs.existsSync(path.join(rootDir, "cdk.json"))
+  ) {
+    return "aws";
+  }
+
+  return "none";
+}
+
+function detectPlaywrightSupport(rootDir, packageJson, packageScripts) {
+  const hasConfig =
+    fs.existsSync(path.join(rootDir, "playwright.config.ts")) ||
+    fs.existsSync(path.join(rootDir, "playwright.config.js")) ||
+    fs.existsSync(path.join(rootDir, "playwright.config.mjs"));
+  const hasPlaywrightDep =
+    packageJsonHasDependency(packageJson, "@playwright/test") ||
+    packageJsonHasDependency(packageJson, "playwright");
+  const hasScript = Boolean(
+    packageScripts["test:e2e"] ||
+      packageScripts["test:playwright"] ||
+      packageScripts.playwright
+  );
+
+  if (hasConfig || hasPlaywrightDep || hasScript) {
+    return {
+      supported: true,
+      provider: "playwright",
+      status: "configured",
+      command: packageScripts["test:e2e"]
+        ? packageManagerCommand(detectPackageManager(rootDir) || "npm", "test:e2e")
+        : packageScripts["test:playwright"]
+          ? packageManagerCommand(detectPackageManager(rootDir) || "npm", "test:playwright")
+          : packageScripts.playwright
+            ? packageManagerCommand(detectPackageManager(rootDir) || "npm", "playwright")
+            : "playwright test",
+    };
+  }
+
+  return {
+    supported: false,
+    provider: "none",
+    status: "not-configured",
+    command: "not-configured",
+  };
+}
+
 function inferProfile(inspection) {
   if (!inspection.exists || !inspection.isDirectory) {
     return null;
@@ -239,6 +299,12 @@ function buildConfig(rootDir, args, inspection) {
     firstExisting(rootDir, ["docs/workflow.md", "docs/operations.md"]),
   ].filter(Boolean);
 
+  const previewProvider = detectPreviewProvider(rootDir);
+  const browserValidation = detectPlaywrightSupport(rootDir, inspection.packageJson, scripts);
+  const validationMode = previewProvider === "none" ? "local-only" : "preview-required";
+  const previewStatus = previewProvider === "none" ? "not-configured" : "configured";
+  const humanQaGate = validationMode === "local-only" ? "not-configured" : "required-before-merge";
+
   return {
     ...defaults,
     installMode: args.mode || (inspection.existingOverlay ? "existing-repo" : defaults.installMode),
@@ -247,6 +313,11 @@ function buildConfig(rootDir, args, inspection) {
     issueSource: args.localOnly ? "local-draft-then-github-issue" : defaults.issueSource,
     seedIssue: args.seedIssue === undefined ? defaults.seedIssue : args.seedIssue,
     requiredPreReadDocs,
+    validationMode,
+    previewProvider,
+    previewStatus,
+    humanQaGate,
+    browserValidation,
     verification: {
       lint: scripts.lint ? packageManagerCommand(packageManager, "lint") : preset.scripts.lint,
       build: scripts.build ? packageManagerCommand(packageManager, "build") : preset.scripts.build,
@@ -343,7 +414,9 @@ module.exports = {
   buildConfig,
   collectOverlayStatus,
   detectPackageManager,
+  detectPlaywrightSupport,
   detectFramework,
+  detectPreviewProvider,
   detectStackPreset,
   ensureGitState,
   evaluatePrerequisites,

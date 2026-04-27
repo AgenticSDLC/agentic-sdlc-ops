@@ -56,6 +56,29 @@ In practical terms, that means:
 - humans can steer or stop work from the issue or PR thread
 - review happens in public repository context instead of private side channels
 
+## Shared Responsibility
+
+`agentic-sdlc-ops` provides the operating overlay, not the full delivery platform.
+
+The kit is responsible for:
+
+- issue-first execution rules
+- profile defaults
+- local adapter generation
+- issue and PR contract scaffolding
+- lifecycle label installation and verification
+- doctor-style repository checks
+
+The adopting repository remains responsible for:
+
+- remote hosting and deployment environment setup
+- CI configuration and required checks
+- preview deployment infrastructure
+- human QA and approval gates
+- secrets, cloud accounts, and provider-specific delivery wiring
+
+If those repository-owned parts are missing, `agentic-sdlc` should warn clearly, but it should not pretend they are already solved.
+
 ## Usage Pattern
 
 1. Copy the relevant templates into a target repository.
