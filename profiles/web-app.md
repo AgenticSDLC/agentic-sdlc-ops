@@ -4,6 +4,24 @@ This profile defines the exact installer behavior for `agentic-sdlc init --profi
 
 It is optimized for customer-facing web applications, including e-commerce storefronts, where user-visible changes, payments, auth, and fulfillment boundaries need explicit execution rules.
 
+## Default Operating Mode
+
+Unless the user explicitly selects otherwise, the `web-app` profile should assume:
+
+- control plane: GitHub
+- execution environment: local
+- topology: `combined`
+
+This means the repository uses GitHub Issues, labels, comments, and PRs as the visible execution system, while code changes, lint, build, and task verification run on the local machine.
+
+The default `web-app` path does not assume:
+
+- a GitHub Actions runner is executing the work
+- a dispatcher service is handing tasks to builders
+- a self-hosted runner is required
+
+Those are optional later additions, not baseline requirements.
+
 ## Purpose
 
 Use this profile for:

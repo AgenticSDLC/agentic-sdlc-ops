@@ -4,6 +4,21 @@ This guide covers the expected path for applying `agentic-sdlc-ops` to a scaffol
 
 This is an overlay workflow. It does not create the app itself.
 
+## Execution Model
+
+For the default `web-app` path, keep these three concepts separate:
+
+- control plane: GitHub
+- execution environment: local machine
+- topology: `combined`
+
+That means:
+
+- the issue, labels, and PR live on GitHub
+- implementation, lint, and build run locally
+- there is no dispatcher or remote runner in the default path
+- one execution path handles planning, implementation, and verification
+
 ## Prerequisites
 
 Before running `agentic-sdlc init --profile web-app`, the target repository should already have:
@@ -99,6 +114,8 @@ agentic-sdlc doctor
 ```
 
 `doctor` should verify both the local overlay files and the standard GitHub labels when GitHub is connected.
+
+This does not imply GitHub Actions or a GitHub runner is executing the task. By default, GitHub is the control plane and execution remains local.
 
 ## Expected Output
 

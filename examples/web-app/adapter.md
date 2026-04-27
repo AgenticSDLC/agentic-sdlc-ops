@@ -2,6 +2,12 @@
 
 This example shows the recommended generated default for the `web-app` profile when used for a customer-facing storefront.
 
+Default execution model:
+
+- control plane: GitHub
+- execution environment: local
+- topology: combined
+
 ## Project Type
 
 - web application
