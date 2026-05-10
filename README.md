@@ -32,7 +32,7 @@ Supporting guidance lives in:
 - `adoption/`
   - how to bring the kit into a target repository
 - `docs/`
-  - design principles and explicit non-goals
+  - vision, design principles, and explicit non-goals
 - `.github/workflows/examples/`
   - non-production example workflow scaffolds for repositories that want automation
 
@@ -118,6 +118,8 @@ Current scope:
 - local-only fallback when GitHub wiring is not ready
 
 For the scaffold-first installation flow, see [docs/getting-started-web-app.md](/Users/kingofcode/myDev/websites/agentic-sdlc-ops/docs/getting-started-web-app.md:1).
+
+For the product direction, see [docs/vision.md](/Users/kingofcode/myDev/websites/agentic-sdlc-ops/docs/vision.md:1).
 
 ## Reference Examples
 

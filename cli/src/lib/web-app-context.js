@@ -47,7 +47,9 @@ function packageJsonHasDependency(packageJson, name) {
     packageJson && packageJson.peerDependencies,
   ].filter(Boolean);
 
-  return sections.some((deps) => Object.prototype.hasOwnProperty.call(deps, name));
+  return sections.some((deps) =>
+    Object.prototype.hasOwnProperty.call(deps, name),
+  );
 }
 
 function detectFramework(rootDir, packageJson) {
@@ -78,15 +80,17 @@ function detectStackPreset(rootDir, packageJson) {
   if (framework === "nextjs" && packageManager === "pnpm") return "nextjs-pnpm";
   if (framework === "nextjs" && packageManager === "npm") return "nextjs-npm";
   if (framework === "nextjs" && packageManager === "yarn") return "nextjs-yarn";
-  if (framework === "react-vite" && packageManager === "pnpm") return "react-vite-pnpm";
-  if (framework === "react-vite" && packageManager === "npm") return "react-vite-npm";
+  if (framework === "react-vite" && packageManager === "pnpm")
+    return "react-vite-pnpm";
+  if (framework === "react-vite" && packageManager === "npm")
+    return "react-vite-npm";
   if (framework === "remix" && packageManager === "pnpm") return "remix-pnpm";
   return null;
 }
 
 function detectBrowserSurface(rootDir) {
-  return ["app", "pages", "src/app", "src/pages", "src/routes"].some((candidate) =>
-    fs.existsSync(path.join(rootDir, candidate))
+  return ["app", "pages", "src/app", "src/pages", "src/routes"].some(
+    (candidate) => fs.existsSync(path.join(rootDir, candidate)),
   );
 }
 
@@ -140,17 +144,44 @@ function hasMinimumAdapterContract(contents) {
   return requiredMarkers.every((marker) => contents.includes(marker));
 }
 
-function detectGitHubReady(rootDir) {
-  const gitConfig = path.join(rootDir, ".git", "config");
-  if (!fs.existsSync(gitConfig)) {
-    return false;
+function parseGitHubRepo(remoteUrl) {
+  if (!remoteUrl) {
+    return null;
   }
 
-  return fs.readFileSync(gitConfig, "utf8").includes("github.com");
+  const normalized = remoteUrl.trim().replace(/\.git$/, "");
+  const sshMatch = normalized.match(/^git@github\.com:([^/]+\/[^/]+)$/);
+  if (sshMatch) {
+    return sshMatch[1];
+  }
+
+  const httpsMatch = normalized.match(
+    /^https:\/\/github\.com\/([^/]+\/[^/]+)$/,
+  );
+  if (httpsMatch) {
+    return httpsMatch[1];
+  }
+
+  return null;
+}
+
+function detectGitHubReady(rootDir) {
+  try {
+    const remote = execFileSync("git", ["remote", "get-url", "origin"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return Boolean(parseGitHubRepo(remote));
+  } catch {
+    return false;
+  }
 }
 
 function classifyAppShape(packageJson) {
-  const name = (packageJson && packageJson.name ? packageJson.name : "").toLowerCase();
+  const name = (
+    packageJson && packageJson.name ? packageJson.name : ""
+  ).toLowerCase();
 
   if (name.includes("shop") || name.includes("store")) {
     return "storefront";
@@ -197,8 +228,8 @@ function detectPlaywrightSupport(rootDir, packageJson, packageScripts) {
     packageJsonHasDependency(packageJson, "playwright");
   const hasScript = Boolean(
     packageScripts["test:e2e"] ||
-      packageScripts["test:playwright"] ||
-      packageScripts.playwright
+    packageScripts["test:playwright"] ||
+    packageScripts.playwright,
   );
 
   if (hasConfig || hasPlaywrightDep || hasScript) {
@@ -207,11 +238,20 @@ function detectPlaywrightSupport(rootDir, packageJson, packageScripts) {
       provider: "playwright",
       status: "configured",
       command: packageScripts["test:e2e"]
-        ? packageManagerCommand(detectPackageManager(rootDir) || "npm", "test:e2e")
+        ? packageManagerCommand(
+            detectPackageManager(rootDir) || "npm",
+            "test:e2e",
+          )
         : packageScripts["test:playwright"]
-          ? packageManagerCommand(detectPackageManager(rootDir) || "npm", "test:playwright")
+          ? packageManagerCommand(
+              detectPackageManager(rootDir) || "npm",
+              "test:playwright",
+            )
           : packageScripts.playwright
-            ? packageManagerCommand(detectPackageManager(rootDir) || "npm", "playwright")
+            ? packageManagerCommand(
+                detectPackageManager(rootDir) || "npm",
+                "playwright",
+              )
             : "playwright test",
     };
   }
@@ -253,7 +293,9 @@ function inspectTarget(rootDir) {
     ? readJsonIfExists(path.join(rootDir, "package.json"))
     : null;
   const packageScripts = (packageJson && packageJson.scripts) || {};
-  const detectedStackPreset = isDirectory ? detectStackPreset(rootDir, packageJson) : null;
+  const detectedStackPreset = isDirectory
+    ? detectStackPreset(rootDir, packageJson)
+    : null;
   const packageManager = isDirectory ? detectPackageManager(rootDir) : null;
   const browserSurface = isDirectory && detectBrowserSurface(rootDir);
 
@@ -287,7 +329,10 @@ async function ensureGitState(rootDir, args, inspection) {
     return true;
   }
 
-  const shouldInit = await confirm("No git repository detected. Initialize git now?", true);
+  const shouldInit = await confirm(
+    "No git repository detected. Initialize git now?",
+    true,
+  );
   if (!shouldInit) {
     return false;
   }
@@ -298,33 +343,58 @@ async function ensureGitState(rootDir, args, inspection) {
 
 function buildConfig(rootDir, args, inspection) {
   const defaults = getDefaultConfig(rootDir);
-  const stackPreset = args.stack || inspection.detectedStackPreset || defaults.stackPreset;
+  const stackPreset =
+    args.stack || inspection.detectedStackPreset || defaults.stackPreset;
   const packageManager = inspection.packageManager || "pnpm";
-  const preset = STACK_PRESETS[stackPreset] || STACK_PRESETS[defaults.stackPreset];
+  const preset =
+    STACK_PRESETS[stackPreset] || STACK_PRESETS[defaults.stackPreset];
   const appShape = args.appShape || classifyAppShape(inspection.packageJson);
   const scripts = inspection.packageScripts || {};
 
   const requiredPreReadDocs = [
     "README.md",
-    firstExisting(rootDir, ["docs/architecture.md", "docs/ARCHITECTURE.md", "docs/system-architecture.md"]),
-    firstExisting(rootDir, ["docs/product.md", "docs/PRODUCT.md", "docs/commerce-constraints.md"]),
+    firstExisting(rootDir, [
+      "docs/architecture.md",
+      "docs/ARCHITECTURE.md",
+      "docs/system-architecture.md",
+    ]),
+    firstExisting(rootDir, [
+      "docs/product.md",
+      "docs/PRODUCT.md",
+      "docs/commerce-constraints.md",
+    ]),
     firstExisting(rootDir, ["docs/design-system.md", "docs/ui-guidelines.md"]),
     firstExisting(rootDir, ["docs/workflow.md", "docs/operations.md"]),
   ].filter(Boolean);
 
   const previewProvider = detectPreviewProvider(rootDir);
-  const browserValidation = detectPlaywrightSupport(rootDir, inspection.packageJson, scripts);
-  const validationMode = previewProvider === "none" ? "local-only" : "preview-required";
-  const previewStatus = previewProvider === "none" ? "not-configured" : "configured";
-  const humanQaGate = validationMode === "local-only" ? "not-configured" : "required-before-merge";
+  const browserValidation = detectPlaywrightSupport(
+    rootDir,
+    inspection.packageJson,
+    scripts,
+  );
+  const validationMode =
+    previewProvider === "none" ? "local-only" : "preview-required";
+  const previewStatus =
+    previewProvider === "none" ? "not-configured" : "configured";
+  const humanQaGate =
+    validationMode === "local-only"
+      ? "not-configured"
+      : "required-before-merge";
 
   return {
     ...defaults,
-    installMode: args.mode || (inspection.existingOverlay ? "existing-repo" : defaults.installMode),
+    installMode:
+      args.mode ||
+      (inspection.existingOverlay ? "existing-repo" : defaults.installMode),
     appShape: APP_SHAPES.includes(appShape) ? appShape : defaults.appShape,
     stackPreset,
-    issueSource: args.localOnly ? "local-draft-then-github-issue" : defaults.issueSource,
-    seedIssue: args.seedIssue === undefined ? defaults.seedIssue : args.seedIssue,
+    issueSource:
+      args.localOnly || !inspection.githubReady
+        ? "local-draft-then-github-issue"
+        : defaults.issueSource,
+    seedIssue:
+      args.seedIssue === undefined ? defaults.seedIssue : args.seedIssue,
     requiredPreReadDocs,
     validationMode,
     previewProvider,
@@ -332,9 +402,15 @@ function buildConfig(rootDir, args, inspection) {
     humanQaGate,
     browserValidation,
     verification: {
-      lint: scripts.lint ? packageManagerCommand(packageManager, "lint") : preset.scripts.lint,
-      build: scripts.build ? packageManagerCommand(packageManager, "build") : preset.scripts.build,
-      test: scripts.test ? packageManagerCommand(packageManager, "test") : preset.scripts.test,
+      lint: scripts.lint
+        ? packageManagerCommand(packageManager, "lint")
+        : preset.scripts.lint,
+      build: scripts.build
+        ? packageManagerCommand(packageManager, "build")
+        : preset.scripts.build,
+      test: scripts.test
+        ? packageManagerCommand(packageManager, "test")
+        : preset.scripts.test,
       smoke: scripts["test:e2e"]
         ? packageManagerCommand(packageManager, "test:e2e")
         : preset.scripts.smoke,
@@ -353,7 +429,8 @@ function evaluatePrerequisites(inspection, args) {
   if (!inspection.hasAppScaffold) {
     return {
       state: "blocked-missing-app",
-      remediation: "Scaffold the web app with the framework vendor tool first, then rerun init.",
+      remediation:
+        "Scaffold the web app with the framework vendor tool first, then rerun init.",
     };
   }
 
@@ -364,28 +441,32 @@ function evaluatePrerequisites(inspection, args) {
   if (!hasLint || !hasBuild) {
     return {
       state: "blocked-missing-verification",
-      remediation: "Add lint/build scripts or pass a supported stack preset, then rerun init.",
+      remediation:
+        "Add lint/build scripts or pass a supported stack preset, then rerun init.",
     };
   }
 
   if (!inspection.hasGit) {
     return {
       state: "blocked-missing-repo",
-      remediation: "Initialize git and rerun init, or run init with --init-git.",
+      remediation:
+        "Initialize git and rerun init, or run init with --init-git.",
     };
   }
 
   if (!inspection.detectedStackPreset && !args.stack) {
     return {
       state: "ready-with-custom-verification",
-      remediation: "Confirm custom lint/build/test commands during installation.",
+      remediation:
+        "Confirm custom lint/build/test commands during installation.",
     };
   }
 
   if (args.localOnly || !inspection.githubReady) {
     return {
       state: "ready-local-only",
-      remediation: "GitHub-backed lifecycle setup is deferred until the repository is connected.",
+      remediation:
+        "GitHub-backed lifecycle setup is deferred until the repository is connected.",
     };
   }
 
@@ -399,33 +480,64 @@ function collectOverlayStatus(rootDir) {
   const files = {
     agents: path.join(rootDir, "AGENTS.md"),
     adapter: path.join(rootDir, ".agentic", "project-adapter.md"),
-    issueTemplate: path.join(rootDir, ".github", "ISSUE_TEMPLATE", "agentic-task.md"),
+    issueTemplate: path.join(
+      rootDir,
+      ".github",
+      "ISSUE_TEMPLATE",
+      "agentic-task.md",
+    ),
     prTemplate: path.join(rootDir, ".github", "pull_request_template.md"),
-    combinedSeedIssue: path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-combined.md"),
-    splitSeedIssue: path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-split.md"),
+    combinedSeedIssue: path.join(
+      rootDir,
+      ".agentic",
+      "issues",
+      "drafts",
+      "pilot-web-app-combined.md",
+    ),
+    splitSeedIssue: path.join(
+      rootDir,
+      ".agentic",
+      "issues",
+      "drafts",
+      "pilot-web-app-split.md",
+    ),
   };
 
   const agentsExists = fs.existsSync(files.agents);
-  const agentsContents = agentsExists ? fs.readFileSync(files.agents, "utf8") : "";
-  const hasManagedAgentsBlock = agentsContents.includes("BEGIN AGENTIC-SDLC MANAGED BLOCK");
+  const agentsContents = agentsExists
+    ? fs.readFileSync(files.agents, "utf8")
+    : "";
+  const hasManagedAgentsBlock = agentsContents.includes(
+    "BEGIN AGENTIC-SDLC MANAGED BLOCK",
+  );
   const adapterExists = fs.existsSync(files.adapter);
-  const adapterContents = adapterExists ? fs.readFileSync(files.adapter, "utf8") : "";
+  const adapterContents = adapterExists
+    ? fs.readFileSync(files.adapter, "utf8")
+    : "";
 
   return {
     files,
     missingRequired: Object.entries(files)
       .filter(([name]) => name !== "seedIssue")
-      .filter(([name]) => name !== "combinedSeedIssue" && name !== "splitSeedIssue")
+      .filter(
+        ([name]) => name !== "combinedSeedIssue" && name !== "splitSeedIssue",
+      )
       .filter(([, filePath]) => !fs.existsSync(filePath))
       .map(([name]) => name),
     hasCombinedSeedIssue: fs.existsSync(files.combinedSeedIssue),
     hasSplitSeedIssue: fs.existsSync(files.splitSeedIssue),
-    agentsContractStrong: agentsExists && hasMinimumAgentsContract(agentsContents),
+    agentsContractStrong:
+      agentsExists && hasMinimumAgentsContract(agentsContents),
     hasManagedAgentsBlock,
-    adapterContractStrong: adapterExists && hasMinimumAdapterContract(adapterContents),
-    hasManagedAdapterBlock: adapterContents.includes("BEGIN AGENTIC-SDLC PROJECT ADAPTER"),
+    adapterContractStrong:
+      adapterExists && hasMinimumAdapterContract(adapterContents),
+    hasManagedAdapterBlock: adapterContents.includes(
+      "BEGIN AGENTIC-SDLC PROJECT ADAPTER",
+    ),
     adapterLooksLikeWebApp:
-      adapterExists && adapterContents.includes("- web application"),
+      adapterExists &&
+      (adapterContents.includes("BEGIN AGENTIC-SDLC PROJECT ADAPTER") ||
+        hasMinimumAdapterContract(adapterContents)),
   };
 }
 

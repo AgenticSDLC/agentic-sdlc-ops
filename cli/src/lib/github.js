@@ -3,7 +3,12 @@ const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { STANDARD_LABELS } = require("../profile-web-app");
-const LIFECYCLE_LABELS = ["ready-for-build", "in-progress", "in-review", "done"];
+const LIFECYCLE_LABELS = [
+  "ready-for-build",
+  "in-progress",
+  "in-review",
+  "done",
+];
 
 function parseGitHubRepo(remoteUrl) {
   if (!remoteUrl) {
@@ -16,7 +21,9 @@ function parseGitHubRepo(remoteUrl) {
     return sshMatch[1];
   }
 
-  const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)$/);
+  const httpsMatch = normalized.match(
+    /^https:\/\/github\.com\/([^/]+\/[^/]+)$/,
+  );
   if (httpsMatch) {
     return httpsMatch[1];
   }
@@ -55,8 +62,28 @@ function ghText(args, rootDir) {
 }
 
 function listRepoLabels(rootDir, repoSlug) {
-  const labels = ghJson(["api", `repos/${repoSlug}/labels?per_page=100`], rootDir);
-  return new Map(labels.map((label) => [label.name, label]));
+  const allLabels = [];
+  let page = 1;
+
+  while (true) {
+    const labels = ghJson(
+      ["api", `repos/${repoSlug}/labels?per_page=100&page=${page}`],
+      rootDir,
+    );
+    if (!Array.isArray(labels) || labels.length === 0) {
+      break;
+    }
+
+    allLabels.push(...labels);
+
+    if (labels.length < 100) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return new Map(allLabels.map((label) => [label.name, label]));
 }
 
 function syncStandardLabels(rootDir) {
@@ -94,14 +121,16 @@ function syncStandardLabels(rootDir) {
             "--description",
             label.description,
           ],
-          { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+          { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
         );
         created.push(label.name);
         continue;
       }
 
-      const colorMatches = String(current.color || "").toLowerCase() === label.color.toLowerCase();
-      const descriptionMatches = (current.description || "") === label.description;
+      const colorMatches =
+        String(current.color || "").toLowerCase() === label.color.toLowerCase();
+      const descriptionMatches =
+        (current.description || "") === label.description;
       if (colorMatches && descriptionMatches) {
         skipped.push(label.name);
         continue;
@@ -120,7 +149,7 @@ function syncStandardLabels(rootDir) {
           "--description",
           label.description,
         ],
-        { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+        { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
       );
       updated.push(label.name);
     }
@@ -133,7 +162,10 @@ function syncStandardLabels(rootDir) {
       skipped,
     };
   } catch (error) {
-    const message = error && error.stderr ? String(error.stderr).trim() : "Unable to inspect or update GitHub labels via `gh`.";
+    const message =
+      error && error.stderr
+        ? String(error.stderr).trim()
+        : "Unable to inspect or update GitHub labels via `gh`.";
     return {
       status: "unavailable",
       repoSlug,
@@ -163,14 +195,19 @@ function checkStandardLabels(rootDir) {
 
   try {
     const existing = listRepoLabels(rootDir, repoSlug);
-    const missing = STANDARD_LABELS.map((label) => label.name).filter((name) => !existing.has(name));
+    const missing = STANDARD_LABELS.map((label) => label.name).filter(
+      (name) => !existing.has(name),
+    );
     return {
       status: "ok",
       repoSlug,
       missing,
     };
   } catch (error) {
-    const message = error && error.stderr ? String(error.stderr).trim() : "Unable to inspect GitHub labels via `gh`.";
+    const message =
+      error && error.stderr
+        ? String(error.stderr).trim()
+        : "Unable to inspect GitHub labels via `gh`.";
     return {
       status: "unavailable",
       repoSlug,
@@ -188,7 +225,9 @@ function updateIssueLifecycle(rootDir, options) {
   const { issue, nextState, addLabels = [], removeLabels = [] } = options;
   const repoSlug = getGitHubRepoSlug(rootDir);
   if (!repoSlug) {
-    throw new Error("No GitHub origin remote detected. Connect the repository before updating issue labels.");
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before updating issue labels.",
+    );
   }
 
   if (!LIFECYCLE_LABELS.includes(nextState)) {
@@ -196,11 +235,21 @@ function updateIssueLifecycle(rootDir, options) {
   }
 
   const issueData = ghJson(
-    ["issue", "view", String(issue), "--repo", repoSlug, "--json", "number,url,title,labels,state"],
-    rootDir
+    [
+      "issue",
+      "view",
+      String(issue),
+      "--repo",
+      repoSlug,
+      "--json",
+      "number,url,title,labels,state",
+    ],
+    rootDir,
   );
   const currentLabels = issueData.labels.map((label) => label.name);
-  const nextLabels = new Set(currentLabels.filter((label) => !LIFECYCLE_LABELS.includes(label)));
+  const nextLabels = new Set(
+    currentLabels.filter((label) => !LIFECYCLE_LABELS.includes(label)),
+  );
   nextLabels.add(nextState);
 
   for (const label of addLabels) {
@@ -223,12 +272,20 @@ function updateIssueLifecycle(rootDir, options) {
       "--add-label",
       [...nextLabels].join(","),
     ],
-    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
   );
 
   const updatedIssue = ghJson(
-    ["issue", "view", String(issue), "--repo", repoSlug, "--json", "number,url,title,labels,state"],
-    rootDir
+    [
+      "issue",
+      "view",
+      String(issue),
+      "--repo",
+      repoSlug,
+      "--json",
+      "number,url,title,labels,state",
+    ],
+    rootDir,
   );
 
   return {
@@ -241,7 +298,9 @@ function createIssue(rootDir, options) {
   const { title, body, labels = [] } = options;
   const repoSlug = getGitHubRepoSlug(rootDir);
   if (!repoSlug) {
-    throw new Error("No GitHub origin remote detected. Connect the repository before publishing an issue.");
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before publishing an issue.",
+    );
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentic-sdlc-issue-"));
@@ -249,13 +308,33 @@ function createIssue(rootDir, options) {
   fs.writeFileSync(bodyPath, body, "utf8");
 
   try {
-    const args = ["issue", "create", "--repo", repoSlug, "--title", title, "--body-file", bodyPath];
+    const args = [
+      "issue",
+      "create",
+      "--repo",
+      repoSlug,
+      "--title",
+      title,
+      "--body-file",
+      bodyPath,
+    ];
     for (const label of labels) {
       args.push("--label", label);
     }
 
     const issueUrl = ghText(args, rootDir);
-    const issue = ghJson(["issue", "view", issueUrl, "--repo", repoSlug, "--json", "number,url,title,labels,state"], rootDir);
+    const issue = ghJson(
+      [
+        "issue",
+        "view",
+        issueUrl,
+        "--repo",
+        repoSlug,
+        "--json",
+        "number,url,title,labels,state",
+      ],
+      rootDir,
+    );
 
     return {
       repoSlug,
