@@ -14,7 +14,7 @@
 ## Issue Draft Location
 
 - optional local drafts in `.agentic/issues/drafts/`
-- live GitHub Issues remain the source of truth after publication
+- live provider work items remain the source of truth after publication
 
 ## Execution Start Condition
 

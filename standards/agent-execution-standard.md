@@ -120,7 +120,7 @@ If an issue appears to require architectural change beyond the scoped task, the 
 
 Before implementation, an agent should read:
 
-- the live GitHub Issue
+- the live provider work item
 - the repository's local project adapter
 - any required repository docs listed in that adapter
 

@@ -2,26 +2,26 @@
 
 ## Purpose
 
-This standard defines the portable issue-first operating model for repositories that use GitHub Issues as the execution control plane.
+This standard defines the portable issue-first operating model for repositories that use a repository control plane for executable work.
 
-It is intentionally stack-agnostic. Toolchain details, verification commands, deployment steps, and environment-specific wrappers belong in a local project adapter, not in this standard.
+It is intentionally stack-agnostic and provider-aware. Toolchain details, verification commands, deployment steps, and environment-specific wrappers belong in a local project adapter, not in this standard.
 
 ## Source of Truth
 
-- The live GitHub Issue body is the authoritative task specification for execution.
+- The live provider work item body is the authoritative task specification for execution.
 - Local mirrors or planning copies may exist for convenience, but they are not authoritative during implementation.
 - Repositories that want a standard local draft location should use `.agentic/issues/drafts/` for issue authoring before publication.
-- If any local artifact disagrees with the live issue, the live issue wins.
+- If any local artifact disagrees with the live provider work item, the live provider work item wins.
 
 ## Local Draft Authoring
 
-Repositories may use a local draft workflow before an issue is published to GitHub.
+Repositories may use a local draft workflow before a work item is published to the active control plane.
 
 Recommended default:
 
 - local issue drafts live in `.agentic/issues/drafts/`
 - draft files are optional authoring artifacts, not execution artifacts
-- once the issue is published to GitHub, the GitHub Issue becomes authoritative
+- once the issue is published to the provider, the provider work item becomes authoritative
 - repositories may keep the draft file as a convenience copy or published snapshot, but it must not override the live issue
 
 ## Required Issue Contract
@@ -56,7 +56,7 @@ Rules:
 
 Every implementation PR should:
 
-- link the source GitHub Issue
+- link the source provider work item
 - expose the implementation plan or link to it
 - mirror or restate the acceptance criteria
 - record verification performed

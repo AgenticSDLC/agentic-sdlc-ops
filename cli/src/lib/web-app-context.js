@@ -4,6 +4,11 @@ const { execFileSync } = require("child_process");
 const {
   STACK_PRESETS,
   APP_SHAPES,
+  CONTROL_PLANE_PROVIDER,
+  HOLD_LABELS,
+  ISSUE_REQUIRED_SECTIONS,
+  STANDARD_LABELS,
+  TOPOLOGY_LABELS,
   getDefaultConfig,
 } = require("../profile-web-app");
 const { confirm } = require("../prompt");
@@ -395,6 +400,11 @@ function buildConfig(rootDir, args, inspection) {
         : defaults.issueSource,
     seedIssue:
       args.seedIssue === undefined ? defaults.seedIssue : args.seedIssue,
+    controlPlaneProvider: CONTROL_PLANE_PROVIDER,
+    holdLabels: HOLD_LABELS,
+    issueRequiredSections: ISSUE_REQUIRED_SECTIONS,
+    standardLabels: STANDARD_LABELS,
+    topologyLabels: TOPOLOGY_LABELS,
     requiredPreReadDocs,
     validationMode,
     previewProvider,

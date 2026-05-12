@@ -2,13 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
-const { STANDARD_LABELS } = require("../profile-web-app");
-const LIFECYCLE_LABELS = [
-  "ready-for-build",
-  "in-progress",
-  "in-review",
-  "done",
-];
+const { LIFECYCLE_STATES } = require("../lifecycle");
 
 function parseGitHubRepo(remoteUrl) {
   if (!remoteUrl) {
@@ -21,9 +15,7 @@ function parseGitHubRepo(remoteUrl) {
     return sshMatch[1];
   }
 
-  const httpsMatch = normalized.match(
-    /^https:\/\/github\.com\/([^/]+\/[^/]+)$/,
-  );
+  const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)$/);
   if (httpsMatch) {
     return httpsMatch[1];
   }
@@ -31,7 +23,7 @@ function parseGitHubRepo(remoteUrl) {
   return null;
 }
 
-function getGitHubRepoSlug(rootDir) {
+function getRepoSlug(rootDir) {
   try {
     const remote = execFileSync("git", ["remote", "get-url", "origin"], {
       cwd: rootDir,
@@ -61,6 +53,14 @@ function ghText(args, rootDir) {
   }).trim();
 }
 
+function ghGraphql(query, fields, rootDir) {
+  const args = ["api", "graphql", "-f", `query=${query}`];
+  for (const [key, value] of Object.entries(fields || {})) {
+    args.push("-F", `${key}=${value}`);
+  }
+  return ghJson(args, rootDir);
+}
+
 function listRepoLabels(rootDir, repoSlug) {
   const allLabels = [];
   let page = 1;
@@ -68,14 +68,13 @@ function listRepoLabels(rootDir, repoSlug) {
   while (true) {
     const labels = ghJson(
       ["api", `repos/${repoSlug}/labels?per_page=100&page=${page}`],
-      rootDir,
+      rootDir
     );
     if (!Array.isArray(labels) || labels.length === 0) {
       break;
     }
 
     allLabels.push(...labels);
-
     if (labels.length < 100) {
       break;
     }
@@ -86,8 +85,8 @@ function listRepoLabels(rootDir, repoSlug) {
   return new Map(allLabels.map((label) => [label.name, label]));
 }
 
-function syncStandardLabels(rootDir) {
-  const repoSlug = getGitHubRepoSlug(rootDir);
+function syncLabels(rootDir, labels) {
+  const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     return {
       status: "skipped",
@@ -105,7 +104,7 @@ function syncStandardLabels(rootDir) {
     const updated = [];
     const skipped = [];
 
-    for (const label of STANDARD_LABELS) {
+    for (const label of labels) {
       const current = existing.get(label.name);
       if (!current) {
         execFileSync(
@@ -121,7 +120,7 @@ function syncStandardLabels(rootDir) {
             "--description",
             label.description,
           ],
-          { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
+          { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
         );
         created.push(label.name);
         continue;
@@ -129,8 +128,7 @@ function syncStandardLabels(rootDir) {
 
       const colorMatches =
         String(current.color || "").toLowerCase() === label.color.toLowerCase();
-      const descriptionMatches =
-        (current.description || "") === label.description;
+      const descriptionMatches = (current.description || "") === label.description;
       if (colorMatches && descriptionMatches) {
         skipped.push(label.name);
         continue;
@@ -149,7 +147,7 @@ function syncStandardLabels(rootDir) {
           "--description",
           label.description,
         ],
-        { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
+        { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
       );
       updated.push(label.name);
     }
@@ -182,8 +180,8 @@ function syncStandardLabels(rootDir) {
   }
 }
 
-function checkStandardLabels(rootDir) {
-  const repoSlug = getGitHubRepoSlug(rootDir);
+function checkLabels(rootDir, labels) {
+  const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     return {
       status: "skipped",
@@ -195,9 +193,7 @@ function checkStandardLabels(rootDir) {
 
   try {
     const existing = listRepoLabels(rootDir, repoSlug);
-    const missing = STANDARD_LABELS.map((label) => label.name).filter(
-      (name) => !existing.has(name),
-    );
+    const missing = labels.map((label) => label.name).filter((name) => !existing.has(name));
     return {
       status: "ok",
       repoSlug,
@@ -221,17 +217,13 @@ function checkStandardLabels(rootDir) {
   }
 }
 
-function updateIssueLifecycle(rootDir, options) {
+function updateLifecycle(rootDir, options) {
   const { issue, nextState, addLabels = [], removeLabels = [] } = options;
-  const repoSlug = getGitHubRepoSlug(rootDir);
+  const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before updating issue labels.",
+      "No GitHub origin remote detected. Connect the repository before updating issue labels."
     );
-  }
-
-  if (!LIFECYCLE_LABELS.includes(nextState)) {
-    throw new Error(`Unsupported lifecycle state \`${nextState}\`.`);
   }
 
   const issueData = ghJson(
@@ -244,11 +236,11 @@ function updateIssueLifecycle(rootDir, options) {
       "--json",
       "number,url,title,labels,state",
     ],
-    rootDir,
+    rootDir
   );
   const currentLabels = issueData.labels.map((label) => label.name);
   const nextLabels = new Set(
-    currentLabels.filter((label) => !LIFECYCLE_LABELS.includes(label)),
+    currentLabels.filter((label) => !LIFECYCLE_STATES.includes(label))
   );
   nextLabels.add(nextState);
 
@@ -268,11 +260,11 @@ function updateIssueLifecycle(rootDir, options) {
       "--repo",
       repoSlug,
       "--remove-label",
-      LIFECYCLE_LABELS.join(","),
+      LIFECYCLE_STATES.join(","),
       "--add-label",
       [...nextLabels].join(","),
     ],
-    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
+    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
   );
 
   const updatedIssue = ghJson(
@@ -285,7 +277,7 @@ function updateIssueLifecycle(rootDir, options) {
       "--json",
       "number,url,title,labels,state",
     ],
-    rootDir,
+    rootDir
   );
 
   return {
@@ -294,12 +286,106 @@ function updateIssueLifecycle(rootDir, options) {
   };
 }
 
-function createIssue(rootDir, options) {
-  const { title, body, labels = [] } = options;
-  const repoSlug = getGitHubRepoSlug(rootDir);
+function getIssue(rootDir, issue) {
+  const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before publishing an issue.",
+      "No GitHub origin remote detected. Connect the repository before reading issue state."
+    );
+  }
+
+  const issueData = ghJson(
+    [
+      "issue",
+      "view",
+      String(issue),
+      "--repo",
+      repoSlug,
+      "--json",
+      "number,url,title,body,labels,state",
+    ],
+    rootDir
+  );
+
+  return {
+    repoSlug,
+    issue: issueData,
+  };
+}
+
+function getLinkedPullRequests(rootDir, issueNumber) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before reading pull request state."
+    );
+  }
+
+  const [owner, name] = repoSlug.split("/");
+  const response = ghGraphql(
+    `
+      query($owner: String!, $name: String!, $issueNumber: Int!) {
+        repository(owner: $owner, name: $name) {
+          issue(number: $issueNumber) {
+            timelineItems(first: 50, itemTypes: [CROSS_REFERENCED_EVENT]) {
+              nodes {
+                ... on CrossReferencedEvent {
+                  source {
+                    __typename
+                    ... on PullRequest {
+                      number
+                      title
+                      url
+                      state
+                      isDraft
+                      mergedAt
+                      body
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `,
+    { owner, name, issueNumber: Number(issueNumber) },
+    rootDir
+  );
+
+  const nodes =
+    response &&
+    response.data &&
+    response.data.repository &&
+    response.data.repository.issue &&
+    response.data.repository.issue.timelineItems &&
+    response.data.repository.issue.timelineItems.nodes
+      ? response.data.repository.issue.timelineItems.nodes
+      : [];
+
+  const prs = [];
+  const seen = new Set();
+  for (const node of nodes) {
+    const source = node && node.source;
+    if (!source || source.__typename !== "PullRequest" || seen.has(source.number)) {
+      continue;
+    }
+    seen.add(source.number);
+    prs.push(source);
+  }
+
+  return {
+    repoSlug,
+    pullRequests: prs,
+  };
+}
+
+function createIssue(rootDir, options) {
+  const { title, body, labels = [] } = options;
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before publishing an issue."
     );
   }
 
@@ -333,7 +419,7 @@ function createIssue(rootDir, options) {
         "--json",
         "number,url,title,labels,state",
       ],
-      rootDir,
+      rootDir
     );
 
     return {
@@ -346,9 +432,13 @@ function createIssue(rootDir, options) {
 }
 
 module.exports = {
-  checkStandardLabels,
-  createIssue,
-  getGitHubRepoSlug,
-  syncStandardLabels,
-  updateIssueLifecycle,
+  name: "github",
+  capabilities: {
+    syncLabels,
+    checkLabels,
+    getIssue,
+    getLinkedPullRequests,
+    updateLifecycle,
+    createIssue,
+  },
 };

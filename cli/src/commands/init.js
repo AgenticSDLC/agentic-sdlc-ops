@@ -1,5 +1,5 @@
 const path = require("path");
-const { syncStandardLabels } = require("../lib/github");
+const { getControlPlane } = require("../lib/control-plane");
 const { generateOverlay } = require("../lib/overlay");
 const { assessDoctor, printDoctorResult } = require("./doctor");
 const {
@@ -84,6 +84,7 @@ async function handleInit(args) {
   }
 
   const config = buildConfig(rootDir, resolvedArgs, inspection);
+  const controlPlane = getControlPlane(config);
   printOutcome(prereq.state, {
     target: rootDir,
     installMode: config.installMode,
@@ -104,7 +105,10 @@ async function handleInit(args) {
 
   let labelSync = null;
   if (prereq.state !== "ready-local-only") {
-    labelSync = syncStandardLabels(rootDir);
+    labelSync = controlPlane.capabilities.syncLabels(
+      rootDir,
+      config.standardLabels,
+    );
     printSection("GitHub Labels");
     printKeyValue("Repository", labelSync.repoSlug || "unknown");
     printKeyValue("Status", labelSync.status);

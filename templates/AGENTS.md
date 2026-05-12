@@ -1,12 +1,12 @@
 Execution Source of Truth
 
-Agents must treat the live GitHub Issue body as the authoritative task specification for implementation work.
+Agents must treat the live provider work item body as the authoritative task specification for implementation work.
 
 Local planning files may exist, but they are not authoritative during execution.
 
 If the repository uses local issue drafts before publication, the recommended location is `.agentic/issues/drafts/`.
 
-If local planning artifacts differ from the live GitHub Issue, the GitHub Issue takes precedence.
+If local planning artifacts differ from the live provider work item, the live provider work item takes precedence.
 
 Agents must read the live issue before implementing work.
 

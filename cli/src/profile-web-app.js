@@ -66,6 +66,7 @@ const STACK_PRESETS = {
 const APP_SHAPES = ["storefront", "saas-app", "marketing-site", "admin-console"];
 const PLAN_VISIBILITY = "issue-comment";
 const DEFAULT_TOPOLOGY = "combined";
+const CONTROL_PLANE_PROVIDER = "github";
 const STANDARD_LABELS = [
   {
     name: "ready-for-build",
@@ -138,6 +139,14 @@ const STANDARD_LABELS = [
     description: "Work requires human guidance before continuing",
   },
 ];
+const ISSUE_REQUIRED_SECTIONS = [
+  "Context",
+  "Requirements",
+  "Acceptance Criteria",
+  "Target Files",
+];
+const HOLD_LABELS = ["hold", "needs-human"];
+const TOPOLOGY_LABELS = ["topology:combined", "topology:split"];
 
 function getDefaultConfig(targetDir) {
   return {
@@ -146,10 +155,15 @@ function getDefaultConfig(targetDir) {
     appShape: "storefront",
     stackPreset: "nextjs-pnpm",
     topology: DEFAULT_TOPOLOGY,
+    controlPlaneProvider: CONTROL_PLANE_PROVIDER,
     runnerMode: "none-local",
     planVisibility: PLAN_VISIBILITY,
     issueSource: "github-issue",
+    issueRequiredSections: ISSUE_REQUIRED_SECTIONS,
     labelPack: "standard-with-routing",
+    holdLabels: HOLD_LABELS,
+    topologyLabels: TOPOLOGY_LABELS,
+    standardLabels: STANDARD_LABELS,
     workflowScaffolding: "recommended",
     accelerators: ["task-classes", "gh-cli-sop", "issue-first-workflow", "env-manifest"],
     seedIssue: true,
@@ -159,8 +173,12 @@ function getDefaultConfig(targetDir) {
 module.exports = {
   STACK_PRESETS,
   STANDARD_LABELS,
+  ISSUE_REQUIRED_SECTIONS,
+  HOLD_LABELS,
+  TOPOLOGY_LABELS,
   APP_SHAPES,
   PLAN_VISIBILITY,
   DEFAULT_TOPOLOGY,
+  CONTROL_PLANE_PROVIDER,
   getDefaultConfig,
 };

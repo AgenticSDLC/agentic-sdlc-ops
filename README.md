@@ -37,7 +37,7 @@ In practice, that means:
 
 This repository is for teams that want:
 
-- GitHub Issues as the execution control plane
+- a repository control plane with GitHub as the first supported provider
 - a stable issue and PR contract for implementation
 - explicit lifecycle gates for readiness, build, review, and done
 - an adapter-based model that works across different stack types

@@ -1,5 +1,8 @@
 const path = require("path");
-const { updateIssueLifecycle } = require("../lib/github");
+const { getControlPlane } = require("../lib/control-plane");
+const { isLifecycleState } = require("../lib/lifecycle");
+const { validateLifecycleTransition } = require("../lib/policy");
+const { buildConfig, inferProfile, inspectTarget } = require("../lib/web-app-context");
 const { printFooter, printKeyValue, printPathList, printSection } = require("../ui");
 
 function normalizeLabels(values) {
@@ -16,7 +19,38 @@ function normalizeLabels(values) {
 
 async function handleIssueTransition(args) {
   const rootDir = path.resolve(args.target || process.cwd());
-  const result = updateIssueLifecycle(rootDir, {
+  if (!isLifecycleState(args.state)) {
+    throw new Error(`Unsupported lifecycle state \`${args.state}\`.`);
+  }
+
+  const inspection = inspectTarget(rootDir);
+  const profile = args.profile || inferProfile(inspection);
+  if (profile !== "web-app") {
+    throw new Error(
+      "Unable to infer a supported profile. Pass `--profile web-app` explicitly if this is a web application."
+    );
+  }
+
+  const config = buildConfig(rootDir, { ...args, profile }, inspection);
+  const controlPlane = getControlPlane(config);
+  const current = controlPlane.capabilities.getIssue(rootDir, args.issue);
+  const linkedPullRequests =
+    args.state === "in-review" || args.state === "done"
+      ? controlPlane.capabilities.getLinkedPullRequests(rootDir, args.issue).pullRequests
+      : [];
+  const policyDecision = validateLifecycleTransition(
+    current.issue,
+    args.state,
+    config,
+    { linkedPullRequests }
+  );
+  if (!policyDecision.ok) {
+    throw new Error(
+      `Lifecycle policy blocked transition to \`${args.state}\`: ${policyDecision.findings.join(" ")}`
+    );
+  }
+
+  const result = controlPlane.capabilities.updateLifecycle(rootDir, {
     issue: args.issue,
     nextState: args.state,
     addLabels: normalizeLabels(args.label),

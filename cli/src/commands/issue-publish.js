@@ -1,10 +1,9 @@
 const path = require("path");
-const { createIssue, syncStandardLabels } = require("../lib/github");
+const { getControlPlane } = require("../lib/control-plane");
+const { LIFECYCLE_STATE_SET, LIFECYCLE_STATES } = require("../lib/lifecycle");
 const { resolveDraftPath, parseDraftFile } = require("../lib/drafts");
 const { buildConfig, inferProfile, inspectTarget } = require("../lib/web-app-context");
 const { printFooter, printKeyValue, printPathList, printSection } = require("../ui");
-
-const LIFECYCLE_LABELS = new Set(["ready-for-build", "in-progress", "in-review", "done"]);
 
 function normalizeLabels(values) {
   if (!values) {
@@ -61,6 +60,7 @@ async function handleIssuePublish(args) {
   }
 
   const config = buildConfig(rootDir, { ...args, profile }, inspection);
+  const controlPlane = getControlPlane(config);
   const draftPath = resolveDraftPath(rootDir, args.draft);
   const draft = parseDraftFile(draftPath);
 
@@ -69,9 +69,9 @@ async function handleIssuePublish(args) {
     ? uniqueLabels(extraLabels)
     : uniqueLabels([...getDefaultIssueLabels(config, args), ...extraLabels]);
 
-  if (args.state && !LIFECYCLE_LABELS.has(args.state)) {
+  if (args.state && !LIFECYCLE_STATE_SET.has(args.state)) {
     throw new Error(
-      `Unsupported lifecycle state \`${args.state}\`. Use one of: ${[...LIFECYCLE_LABELS].join(", ")}.`
+      `Unsupported lifecycle state \`${args.state}\`. Use one of: ${LIFECYCLE_STATES.join(", ")}.`
     );
   }
 
@@ -91,7 +91,10 @@ async function handleIssuePublish(args) {
     return;
   }
 
-  const labelSync = syncStandardLabels(rootDir);
+  const labelSync = controlPlane.capabilities.syncLabels(
+    rootDir,
+    config.standardLabels,
+  );
   if (labelSync.status === "unavailable") {
     throw new Error(`Unable to sync standard GitHub labels: ${labelSync.reason}`);
   }
@@ -99,7 +102,7 @@ async function handleIssuePublish(args) {
     throw new Error("No GitHub origin remote detected. Connect the repository before publishing an issue.");
   }
 
-  const created = createIssue(rootDir, {
+  const created = controlPlane.capabilities.createIssue(rootDir, {
     title: draft.title,
     body: draft.body,
     labels,

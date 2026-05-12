@@ -1,5 +1,5 @@
 const path = require("path");
-const { checkStandardLabels } = require("../lib/github");
+const { getControlPlane } = require("../lib/control-plane");
 const {
   buildConfig,
   collectOverlayStatus,
@@ -50,6 +50,7 @@ function assessDoctor(rootDir, args) {
   }
 
   const config = buildConfig(rootDir, args, inspection);
+  const controlPlane = getControlPlane(config);
   const overlay = collectOverlayStatus(rootDir);
   const findings = [];
   let state = inspection.githubReady && !args.localOnly ? "pass" : "local-only";
@@ -117,7 +118,10 @@ function assessDoctor(rootDir, args) {
   }
 
   if (inspection.githubReady && !args.localOnly) {
-    const labels = checkStandardLabels(rootDir);
+    const labels = controlPlane.capabilities.checkLabels(
+      rootDir,
+      config.standardLabels,
+    );
     if (labels.status === "unavailable") {
       findings.push(`Unable to verify standard GitHub labels: ${labels.reason}`);
       if (state === "pass") {
