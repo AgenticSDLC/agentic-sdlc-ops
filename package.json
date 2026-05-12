@@ -1,14 +1,37 @@
 {
   "name": "agentic-sdlc-ops",
   "version": "0.1.0",
-  "private": true,
+  "description": "Portable governance lifecycle and CLI for issue-first agentic SDLC",
+  "private": false,
+  "license": "MIT",
   "packageManager": "pnpm@10.12.4",
+  "files": [
+    "cli/",
+    "templates/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "bin": {
     "agentic-sdlc": "cli/index.js"
   },
   "scripts": {
-    "cli:help": "node cli/index.js --help"
+    "cli:help": "node cli/index.js --help",
+    "prepublishOnly": "node cli/index.js --help"
   },
+  "keywords": [
+    "agentic",
+    "sdlc",
+    "governance",
+    "github-issues",
+    "workflow",
+    "cli"
+  ],
   "dependencies": {
     "chalk": "^5.6.2",
     "commander": "^14.0.3"

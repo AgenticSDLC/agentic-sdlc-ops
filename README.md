@@ -1,95 +1,114 @@
 # Agentic SDLC Ops
 
-`agentic-sdlc-ops` is a standalone workflow kit for issue-first software delivery.
+`agentic-sdlc-ops` is a lifecycle and workflow kit, governing issue-first agent-driven software delivery.
 
-It exists to make a reusable issue-first operating model available across current and future repositories without forcing those repositories to inherit project-specific tooling, CI commands, hosting assumptions, or deployment architecture.
+The lifecycle and guardrails work at the coding agent level. Bring your own CI stacks, hosting setups, and deployment architectures.
+
+## Why This Exists
+
+Coding agents can ship changes quickly. Without lifecycle rules, visibility, governability, plans, repository control, and verification, that speed creates drift and risks.
+
+This project gives teams a coding agent lifecycle model where:
+
+- work starts from visible intent
+- humans have observability and can steer or stop execution at any point
+- repositories keep control of their own validation rules
+- code is not considered complete until repository-defined checks pass
+
+## Values And Principles
+
+`agentic-sdlc-ops` is guided by six values from the Agentic SDLC Guidebook:
+
+- visibility over hidden autonomy
+- maintainable governance over maximum automation
+- plans over ad-hoc execution
+- verification over code generation
+- repository ownership over centralized control
+- lifecycle adherence over delivery speed
+
+In practice, that means:
+
+- execution state, plans, and outcomes are observable
+- humans can interrupt or override execution through issue and PR context
+- repository-local adapters define commands, checks, and constraints
+- lifecycle governance comes before deeper automation
 
 ## Who This Is For
 
-This repository is for teams and agents that want:
+This repository is for teams that want:
 
-- GitHub Issues to be the execution control plane
-- a stable issue and PR contract for implementation work
-- explicit rules for when execution may begin
-- outcome-based verification before work is considered complete
-- a lightweight way to adapt the model to different stacks
+- GitHub Issues as the execution control plane
+- a stable issue and PR contract for implementation
+- explicit lifecycle gates for readiness, build, review, and done
+- an adapter-based model that works across different stack types
 
-## Repository Model
+## What This Repository Contains
 
-This kit is intentionally split into three layers:
+Core layers:
 
-- `standards/`
-  - stack-agnostic rules that should remain stable across repositories
-- `profiles/`
-  - bounded installer defaults and selection lists for supported repository types
-- `templates/`
-  - reusable starting points for issues, PRs, agent rules, and per-repo adapters
-- `examples/`
-  - concrete adapters showing how the standard maps onto real repositories
+- `standards/`: stack-agnostic lifecycle rules and contracts
+- `profiles/`: profile-specific installer defaults and bounded choices
+- `templates/`: reusable issue, PR, adapter, and agent scaffolds
+- `examples/`: concrete adapter references for real repository shapes
 
-Supporting guidance lives in:
+Supporting material:
 
-- `adoption/`
-  - how to bring the kit into a target repository
-- `docs/`
-  - vision, design principles, and explicit non-goals
-- `.github/workflows/examples/`
-  - non-production example workflow scaffolds for repositories that want automation
+- `adoption/`: rollout and migration guidance
+- `docs/`: vision, principles, and boundary docs
+- `.github/workflows/examples/`: non-production workflow examples
+- `public/`: launch-facing narrative material
 
-## Design Intent
+## Shared Responsibility Model
 
-This repository is documentation-first.
+`agentic-sdlc-ops` provides the coding agent lifecycle scaffolding, guardrails, and bootstrap flow. It works in concert with your CI, deployment system, and repository-specific rules. It defines a clear contract and standard for how those pieces fit together.
 
-It does not try to centralize execution infrastructure in phase 1. Instead, it defines a portable operating model that each repository can adopt by copying the shared baseline and filling in a small local adapter.
+This kit is responsible for:
 
-The standard assumes modern execution should be:
+- issue-first lifecycle standards
+- adapter and contract scaffolding
+- profile-aware initialization
+- lifecycle label installation and checks
+- doctor-style repository diagnostics
 
-- plan-first
-- visible
-- autonomous by default
-- interruptible by human feedback when needed
+Bring your own:
 
-In practical terms, that means:
+- CI and required checks
+- runtime infrastructure and deployment wiring
+- secrets and cloud/provider setup
+- human QA and approval policy
 
-- an agent posts a visible preflight plan
-- implementation proceeds automatically unless a hold signal exists
-- humans can steer or stop work from the issue or PR thread
-- review happens in public repository context instead of private side channels
-
-## Shared Responsibility
-
-`agentic-sdlc-ops` provides the operating overlay, not the full delivery platform.
-
-The kit is responsible for:
-
-- issue-first execution rules
-- profile defaults
-- local adapter generation
-- issue and PR contract scaffolding
-- lifecycle label installation and verification
-- doctor-style repository checks
-
-The adopting repository remains responsible for:
-
-- remote hosting and deployment environment setup
-- CI configuration and required checks
-- preview deployment infrastructure
-- human QA and approval gates
-- secrets, cloud accounts, and provider-specific delivery wiring
-
-If those repository-owned parts are missing, `agentic-sdlc` should warn clearly, but it should not pretend they are already solved.
+If those repository-owned parts are missing, the CLI should report gaps clearly instead of masking them.
 
 ## Usage Pattern
 
-1. Copy the relevant templates into a target repository.
-2. Create a local project adapter from `templates/project-adapter.md`.
-3. Add the labels and automation hooks that repository needs.
-4. Keep repo-specific commands and constraints in the local adapter, not in the core standard.
-5. Validate the lifecycle with one pilot issue before expanding use.
+1. Initialize the lifecycle scaffolding in a target repository.
+2. Generate or update the local project adapter.
+3. Confirm labels and lifecycle checks.
+4. Publish a pilot issue and run one end-to-end lifecycle.
+5. Expand adoption once verification and handoff are reliable.
 
-## CLI
+## CLI Status (Current)
 
-A first CLI foundation now exists for the `web-app` profile:
+> **Note:** The CLI must be installed (or run via `npx` or `pnpm`) before using the commands below. See [docs/getting-started-web-app.md](docs/getting-started-web-app.md) for setup instructions.
+
+Current profile support is focused on `web-app`.
+
+You can run the CLI commands using any of these methods:
+
+- `npx agentic-sdlc ...`
+- `pnpm agentic-sdlc ...` (if installed as a dependency)
+- `node cli/index.js ...` (from a local clone)
+
+Examples:
+
+```sh
+npx agentic-sdlc init
+npx agentic-sdlc doctor
+npx agentic-sdlc issue publish --draft pilot-web-app-combined
+npx agentic-sdlc issue transition --issue 12 --state in-progress
+```
+
+Or, if running from a local clone:
 
 ```sh
 node cli/index.js init
@@ -98,29 +117,26 @@ node cli/index.js issue publish --draft pilot-web-app-combined
 node cli/index.js issue transition --issue 12 --state in-progress
 ```
 
-Current behavior:
+Current capabilities include:
 
-- evaluates `web-app` prerequisites before normal install questions
-- detects stack shape from a scaffolded web app
-- installs the core overlay files idempotently from repo-backed templates
-- appends a managed overlay block to a weak existing `AGENTS.md` instead of silently skipping guardrails
-- upgrades a legacy generated `.agentic/project-adapter.md` in place and appends a managed adapter block when an older custom adapter is missing current contract sections
-- generates two pilot issue drafts for first-run validation: combined and split topology
-- publishes a local draft to GitHub as a real issue with standard initial labels
-- scripts lifecycle label movement through `ready-for-build`, `in-progress`, `in-review`, and `done`
-- runs a post-install doctor pass automatically and also supports standalone `doctor`
+- profile-aware prerequisite evaluation and stack detection
+- idempotent overlay installation from repository templates
+- managed overlay updates for existing `AGENTS.md` and project adapter files
+- pilot issue draft generation (combined and split topologies)
+- draft publishing to GitHub with standard lifecycle labels
+- lifecycle transitions through `ready-for-build`, `in-progress`, `in-review`, and `done`
+- post-install doctor checks plus standalone `doctor`
 
-Current scope:
+Current scope includes:
 
 - `init --profile web-app`
 - `doctor --profile web-app`
-- local prerequisite evaluation
+- local prerequisite checks
 - local-only fallback when GitHub wiring is not ready
 
-For the scaffold-first installation flow, see [docs/getting-started-web-app.md](/Users/kingofcode/myDev/websites/agentic-sdlc-ops/docs/getting-started-web-app.md:1).
+## Start Here
 
-For the product direction, see [docs/vision.md](/Users/kingofcode/myDev/websites/agentic-sdlc-ops/docs/vision.md:1).
-
-## Reference Examples
-
-`examples/` contains concrete adapters that show how the workflow can be applied to different repository types without changing the core standard.
+- Understand the lifecycle:[public/LIFECYCLE.md](public/LIFECYCLE.md)
+- Setup flow: [docs/getting-started-web-app.md](docs/getting-started-web-app.md)
+- Product direction: [docs/vision.md](docs/vision.md)
+- Design intent: [docs/design-principles.md](docs/design-principles.md)
