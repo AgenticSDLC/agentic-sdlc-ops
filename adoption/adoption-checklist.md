@@ -11,6 +11,15 @@ Copy into the target repository:
 - `templates/AGENTS.md`
 - `templates/project-adapter.md`
 
+Optional but recommended depending on repository shape:
+
+- `templates/task-classes.md`
+- `templates/platform-actors.md`
+- `templates/label-catalog.md`
+- `templates/gh-cli-sop.md`
+- `templates/issue-first-workflow.md`
+- `templates/env-manifest.md`
+
 ## 2. Publish A Local Project Adapter
 
 Create the repository's local adapter and fill in:
@@ -24,6 +33,8 @@ Create the repository's local adapter and fill in:
 - preread docs
 - verification commands
 - evidence requirements
+- task classes if the repository uses them
+- environment variable guidance if execution depends on local or hosted secrets
 - stop-and-ask conditions
 - repository-specific constraints
 
@@ -39,6 +50,8 @@ Implement or adapt repository automation for:
 - branch bootstrap
 - draft PR creation if used
 - PR and issue state synchronization
+- PR contract validation
+- commit message or PR title validation if used
 - visible plan posting or plan-presence validation if required
 - hold or stop signal handling
 

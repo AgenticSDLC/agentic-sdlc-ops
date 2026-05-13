@@ -18,6 +18,12 @@ List the observable outcomes required for completion.
 - acceptance criterion 1
 - acceptance criterion 2
 
+## Task Class
+
+Optional unless the repository requires it.
+
+- task class name
+
 ## Target Files
 
 List the files, directories, or subsystems expected to change.

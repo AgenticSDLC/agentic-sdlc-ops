@@ -11,6 +11,11 @@
 - Acceptance Criteria
 - Target Files
 
+Optional additions some repositories use:
+
+- Task Class
+- Target Subsystem
+
 ## Issue Draft Location
 
 Document whether the repository uses local issue drafts before publication.
@@ -89,6 +94,8 @@ List the exact checks that must pass before work is considered complete.
 - command 1
 - command 2
 
+If the repository uses task classes, document whether verification changes by class and where those defaults live.
+
 ## User-Visible Change Policy
 
 Describe extra requirements for user-visible changes.
@@ -99,6 +106,10 @@ List required artifacts.
 
 - artifact 1
 - artifact 2
+
+## Environment Variables
+
+Document any required or optional environment variables, secret sources, and safety rules, or link to a separate environment manifest.
 
 ## Automation Hooks
 

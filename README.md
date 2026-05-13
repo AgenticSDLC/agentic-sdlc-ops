@@ -48,7 +48,7 @@ Core layers:
 
 - `standards/`: stack-agnostic lifecycle rules and contracts
 - `profiles/`: profile-specific installer defaults and bounded choices
-- `templates/`: reusable issue, PR, adapter, and agent scaffolds
+- `templates/`: reusable issue, PR, adapter, workflow, validator, and operating scaffolds
 - `examples/`: concrete adapter references for real repository shapes
 
 Supporting material:
@@ -126,6 +126,8 @@ Current capabilities include:
 - draft publishing to GitHub with standard lifecycle labels
 - lifecycle transitions through `ready-for-build`, `in-progress`, `in-review`, and `done`
 - post-install doctor checks plus standalone `doctor`
+- portable reference templates for task classes, platform actors, label catalogs, CLI SOPs, issue-first workflow docs, and environment manifests
+- reference validator scripts and GitHub workflow examples derived from proving-ground patterns
 
 Current scope includes:
 
