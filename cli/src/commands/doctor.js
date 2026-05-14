@@ -92,6 +92,15 @@ function assessDoctor(rootDir, args) {
     }
   }
 
+  if (overlay.missingRecommended.length) {
+    findings.push(
+      `Recommended overlay artifacts are missing: ${overlay.missingRecommended.join(", ")}. Rerun \`agentic-sdlc init\` to install the current accelerator docs, scripts, and workflow examples.`
+    );
+    if (state === "pass") {
+      state = "warning";
+    }
+  }
+
   if (prereq.state === "ready-with-custom-verification") {
     findings.push(prereq.remediation);
     if (state === "pass") {

@@ -71,6 +71,14 @@ function looksLikeLegacyGeneratedAdapter(contents) {
   );
 }
 
+function writeRecommendedArtifact(summary, rootDir, targetRelativePath, sourceSegments) {
+  writeManagedFile(
+    path.join(rootDir, targetRelativePath),
+    loadTemplate(...sourceSegments),
+    summary
+  );
+}
+
 function generateOverlay(config, rootDir) {
   const summary = {
     rootDir,
@@ -184,6 +192,87 @@ function generateOverlay(config, rootDir) {
     loadTemplate("templates", "pr-template.md"),
     summary
   );
+
+  const recommendedArtifacts = [
+    {
+      enabled: config.accelerators.includes("task-classes"),
+      target: path.join("docs", "TASK-CLASSES.md"),
+      source: ["templates", "task-classes.md"],
+    },
+    {
+      enabled: true,
+      target: path.join("docs", "PLATFORM-ACTORS.md"),
+      source: ["templates", "platform-actors.md"],
+    },
+    {
+      enabled: true,
+      target: path.join("docs", "LABEL-CATALOG.md"),
+      source: ["templates", "label-catalog.md"],
+    },
+    {
+      enabled: config.accelerators.includes("gh-cli-sop"),
+      target: path.join("docs", "GH-CLI-SOP.md"),
+      source: ["templates", "gh-cli-sop.md"],
+    },
+    {
+      enabled: config.accelerators.includes("issue-first-workflow"),
+      target: path.join("docs", "ISSUE-FIRST-WORKFLOW.md"),
+      source: ["templates", "issue-first-workflow.md"],
+    },
+    {
+      enabled: config.accelerators.includes("env-manifest"),
+      target: path.join("docs", "ENVIRONMENT-MANIFEST.md"),
+      source: ["templates", "env-manifest.md"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "validate-issue.js"),
+      source: ["templates", "scripts", "validate-issue.js"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "validate-pr.js"),
+      source: ["templates", "scripts", "validate-pr.js"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "validate-commit-message.js"),
+      source: ["templates", "scripts", "validate-commit-message.js"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "issue-readiness-validator.yml"),
+      source: [".github", "workflows", "examples", "issue-readiness-validator.example.yml"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "draft-pr-bootstrapper.yml"),
+      source: [".github", "workflows", "examples", "draft-pr-bootstrapper.example.yml"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "issue-pr-state-sync.yml"),
+      source: [".github", "workflows", "examples", "issue-pr-state-sync.example.yml"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "pr-contract-validator.yml"),
+      source: [".github", "workflows", "examples", "pr-contract-validator.example.yml"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "commit-message-validator.yml"),
+      source: [".github", "workflows", "examples", "commit-message-validator.example.yml"],
+    },
+  ];
+
+  for (const artifact of recommendedArtifacts) {
+    if (!artifact.enabled) {
+      continue;
+    }
+    writeRecommendedArtifact(summary, rootDir, artifact.target, artifact.source);
+  }
+
   ensureDirectory(path.join(rootDir, ".agentic", "issues", "drafts"));
 
   if (config.seedIssue) {

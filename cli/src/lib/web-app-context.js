@@ -511,6 +511,49 @@ function collectOverlayStatus(rootDir) {
       "drafts",
       "pilot-web-app-split.md",
     ),
+    taskClasses: path.join(rootDir, "docs", "TASK-CLASSES.md"),
+    platformActors: path.join(rootDir, "docs", "PLATFORM-ACTORS.md"),
+    labelCatalog: path.join(rootDir, "docs", "LABEL-CATALOG.md"),
+    ghCliSop: path.join(rootDir, "docs", "GH-CLI-SOP.md"),
+    issueFirstWorkflow: path.join(rootDir, "docs", "ISSUE-FIRST-WORKFLOW.md"),
+    environmentManifest: path.join(rootDir, "docs", "ENVIRONMENT-MANIFEST.md"),
+    validateIssueScript: path.join(rootDir, "scripts", "validate-issue.js"),
+    validatePrScript: path.join(rootDir, "scripts", "validate-pr.js"),
+    validateCommitMessageScript: path.join(
+      rootDir,
+      "scripts",
+      "validate-commit-message.js"
+    ),
+    issueReadinessWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "issue-readiness-validator.yml"
+    ),
+    draftPrBootstrapperWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "draft-pr-bootstrapper.yml"
+    ),
+    issuePrStateSyncWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "issue-pr-state-sync.yml"
+    ),
+    prContractValidatorWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "pr-contract-validator.yml"
+    ),
+    commitMessageValidatorWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "commit-message-validator.yml"
+    ),
   };
 
   const agentsExists = fs.existsSync(files.agents);
@@ -528,12 +571,50 @@ function collectOverlayStatus(rootDir) {
   return {
     files,
     missingRequired: Object.entries(files)
-      .filter(([name]) => name !== "seedIssue")
       .filter(
-        ([name]) => name !== "combinedSeedIssue" && name !== "splitSeedIssue",
+        ([name]) =>
+          ![
+            "combinedSeedIssue",
+            "splitSeedIssue",
+            "taskClasses",
+            "platformActors",
+            "labelCatalog",
+            "ghCliSop",
+            "issueFirstWorkflow",
+            "environmentManifest",
+            "validateIssueScript",
+            "validatePrScript",
+            "validateCommitMessageScript",
+            "issueReadinessWorkflow",
+            "draftPrBootstrapperWorkflow",
+            "issuePrStateSyncWorkflow",
+            "prContractValidatorWorkflow",
+            "commitMessageValidatorWorkflow",
+          ].includes(name)
       )
       .filter(([, filePath]) => !fs.existsSync(filePath))
-      .map(([name]) => name),
+      .map(([, filePath]) => path.relative(rootDir, filePath)),
+    missingRecommended: Object.entries(files)
+      .filter(([name]) =>
+        [
+          "taskClasses",
+          "platformActors",
+          "labelCatalog",
+          "ghCliSop",
+          "issueFirstWorkflow",
+          "environmentManifest",
+          "validateIssueScript",
+          "validatePrScript",
+          "validateCommitMessageScript",
+          "issueReadinessWorkflow",
+          "draftPrBootstrapperWorkflow",
+          "issuePrStateSyncWorkflow",
+          "prContractValidatorWorkflow",
+          "commitMessageValidatorWorkflow",
+        ].includes(name)
+      )
+      .filter(([, filePath]) => !fs.existsSync(filePath))
+      .map(([, filePath]) => path.relative(rootDir, filePath)),
     hasCombinedSeedIssue: fs.existsSync(files.combinedSeedIssue),
     hasSplitSeedIssue: fs.existsSync(files.splitSeedIssue),
     agentsContractStrong:
