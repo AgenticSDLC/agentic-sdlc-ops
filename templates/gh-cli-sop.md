@@ -37,11 +37,26 @@ gh pr view <pr-number>
 gh pr list --limit 20
 ```
 
+Inspect the branch and upstream hint used for PR targeting:
+
+```bash
+git branch --show-current
+git rev-parse --abbrev-ref --symbolic-full-name @{upstream}
+```
+
 Inspect workflow runs:
 
 ```bash
 gh run list --limit 10
 gh run view <run-id>
+```
+
+Combined runtime path:
+
+```bash
+agentic-sdlc runtime combined --issue <issue-number>
+agentic-sdlc runtime combined --issue <issue-number> --base <branch>
+agentic-sdlc runtime combined --issue <issue-number> --no-sync-pr
 ```
 
 ## Repository Notes

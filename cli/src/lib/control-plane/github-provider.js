@@ -431,6 +431,216 @@ function createIssue(rootDir, options) {
   }
 }
 
+function addIssueComment(rootDir, issue, body) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before publishing issue comments."
+    );
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentic-sdlc-comment-"));
+  const bodyPath = path.join(tempDir, "comment-body.md");
+  fs.writeFileSync(bodyPath, body, "utf8");
+
+  try {
+    execFileSync(
+      "gh",
+      [
+        "issue",
+        "comment",
+        String(issue),
+        "--repo",
+        repoSlug,
+        "--body-file",
+        bodyPath,
+      ],
+      { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+    );
+
+    const issueData = ghJson(
+      [
+        "issue",
+        "view",
+        String(issue),
+        "--repo",
+        repoSlug,
+        "--json",
+        "number,url,title",
+      ],
+      rootDir
+    );
+
+    return {
+      repoSlug,
+      issue: issueData,
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function getPullRequestForBranch(rootDir, branchName) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before reading pull request state."
+    );
+  }
+
+  const prs = ghJson(
+    [
+      "pr",
+      "list",
+      "--repo",
+      repoSlug,
+      "--head",
+      branchName,
+      "--state",
+      "open",
+      "--json",
+      "number,title,url,isDraft,body,headRefName,baseRefName",
+    ],
+    rootDir
+  );
+
+  return {
+    repoSlug,
+    pullRequest: Array.isArray(prs) && prs.length ? prs[0] : null,
+  };
+}
+
+function getDefaultBranch(rootDir) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before reading repository defaults."
+    );
+  }
+
+  const repository = ghJson(
+    ["repo", "view", repoSlug, "--json", "defaultBranchRef"],
+    rootDir
+  );
+
+  return {
+    repoSlug,
+    defaultBranch:
+      repository &&
+      repository.defaultBranchRef &&
+      repository.defaultBranchRef.name
+        ? repository.defaultBranchRef.name
+        : "main",
+  };
+}
+
+function createPullRequest(rootDir, options) {
+  const { title, body, base, head } = options;
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before creating pull requests."
+    );
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentic-sdlc-pr-"));
+  const bodyPath = path.join(tempDir, "pr-body.md");
+  fs.writeFileSync(bodyPath, body, "utf8");
+
+  try {
+    const prUrl = ghText(
+      [
+        "pr",
+        "create",
+        "--repo",
+        repoSlug,
+        "--draft",
+        "--base",
+        base,
+        "--head",
+        head,
+        "--title",
+        title,
+        "--body-file",
+        bodyPath,
+      ],
+      rootDir
+    );
+
+    const pullRequest = ghJson(
+      [
+        "pr",
+        "view",
+        prUrl,
+        "--repo",
+        repoSlug,
+        "--json",
+        "number,title,url,isDraft,body,headRefName,baseRefName",
+      ],
+      rootDir
+    );
+
+    return {
+      repoSlug,
+      pullRequest,
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function updatePullRequest(rootDir, prNumber, options) {
+  const { title, body } = options;
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before updating pull requests."
+    );
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentic-sdlc-pr-"));
+  const bodyPath = path.join(tempDir, "pr-body.md");
+  fs.writeFileSync(bodyPath, body, "utf8");
+
+  try {
+    execFileSync(
+      "gh",
+      [
+        "pr",
+        "edit",
+        String(prNumber),
+        "--repo",
+        repoSlug,
+        "--title",
+        title,
+        "--body-file",
+        bodyPath,
+      ],
+      { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+    );
+
+    const pullRequest = ghJson(
+      [
+        "pr",
+        "view",
+        String(prNumber),
+        "--repo",
+        repoSlug,
+        "--json",
+        "number,title,url,isDraft,body,headRefName,baseRefName",
+      ],
+      rootDir
+    );
+
+    return {
+      repoSlug,
+      pullRequest,
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 module.exports = {
   name: "github",
   capabilities: {
@@ -440,5 +650,10 @@ module.exports = {
     getLinkedPullRequests,
     updateLifecycle,
     createIssue,
+    addIssueComment,
+    getPullRequestForBranch,
+    getDefaultBranch,
+    createPullRequest,
+    updatePullRequest,
   },
 };

@@ -217,22 +217,59 @@ If Playwright is not configured, `doctor` should warn even if lint and build pas
 Recommended proving order:
 
 1. publish the combined pilot
-2. move it from `ready-for-build` to `in-progress`
-3. post the preflight plan
-4. complete the PR-sized change
+2. run the combined runtime preflight
+3. complete the PR-sized change
+4. update verification results in the draft PR
 5. move it to `in-review`
 6. merge only after the repository's configured validation mode is satisfied
 7. move it to `done`
 
+For the default combined path, the preferred command is now:
+
+```sh
+agentic-sdlc runtime combined --issue 12
+```
+
+This currently does all of the following:
+
+- validates that the issue is executable
+- advances `ready-for-build` to `in-progress` when allowed
+- posts a visible preflight plan to the issue
+- creates or reuses the local issue branch
+- optionally pushes the branch
+- creates or updates the draft PR
+
+This does not yet:
+
+- implement the code change for you
+- run verification commands automatically
+- mark the PR ready for review
+- merge the PR
+
 Lifecycle movement should not require manual label editing anymore:
 
 ```sh
-agentic-sdlc issue transition --issue 12 --state in-progress
+agentic-sdlc runtime combined --issue 12
 agentic-sdlc issue transition --issue 12 --state in-review
 agentic-sdlc issue transition --issue 12 --state done
 ```
 
-This scripts the lifecycle label swap while preserving non-lifecycle labels such as `topology:combined`, `frontend`, or `full-stack`.
+This uses the runtime entrypoint for the `in-progress` handoff and keeps later lifecycle movement scriptable while preserving non-lifecycle labels such as `topology:combined`, `frontend`, or `full-stack`.
+
+Useful runtime flags:
+
+```sh
+agentic-sdlc runtime combined --issue 12 --no-sync-pr
+agentic-sdlc runtime combined --issue 12 --no-push
+agentic-sdlc runtime combined --issue 12 --base release-candidate
+```
+
+PR base branch resolution order is:
+
+1. `--base <branch>` if explicitly passed
+2. the current branch's immediate upstream branch, when available
+3. the existing PR base branch, if the issue branch already has an open PR
+4. the repository default branch from the provider
 
 If validation mode is still `local-only`, treat merge as a local bootstrap proof only. User-visible repositories should add CI, preview deploys, and human QA before relying on auto-merge behavior.
 
@@ -255,6 +292,15 @@ The CLI should create:
 - `.github/pull_request_template.md`
 - `.agentic/issues/drafts/pilot-web-app-combined.md`
 - `.agentic/issues/drafts/pilot-web-app-split.md`
+- `docs/TASK-CLASSES.md`
+- `docs/PLATFORM-ACTORS.md`
+- `docs/LABEL-CATALOG.md`
+- `docs/GH-CLI-SOP.md`
+- `docs/ISSUE-FIRST-WORKFLOW.md`
+- `docs/ENVIRONMENT-MANIFEST.md`
+- `scripts/validate-issue.js`
+- `scripts/validate-pr.js`
+- `scripts/validate-commit-message.js`
 
 When GitHub is connected, the CLI should also create or update the standard labels:
 
@@ -272,6 +318,8 @@ When GitHub is connected, the CLI should also create or update the standard labe
 - `docs-only`
 - `hold`
 - `needs-human`
+
+Recommended workflow examples may also be installed into `.github/workflows/`.
 
 If `AGENTS.md` already exists but is weak, `init` should append a managed `agentic-sdlc` block instead of replacing the whole file.
 

@@ -27,6 +27,12 @@ Document:
 - supporting labels
 - topology usage if any
 
+For combined topology, document whether the repository uses a runtime command or automation path to:
+
+- publish the preflight plan
+- create or reuse the issue branch
+- create or update the draft PR
+
 ## PR Expectations
 
 Document:
@@ -47,3 +53,11 @@ Document:
 ## Operating Commands
 
 Document the common provider and workflow inspection commands used in the repository.
+
+If the repository uses the current combined runtime slice, include commands such as:
+
+```bash
+agentic-sdlc runtime combined --issue <issue-number>
+agentic-sdlc runtime combined --issue <issue-number> --no-sync-pr
+agentic-sdlc runtime combined --issue <issue-number> --base <branch>
+```

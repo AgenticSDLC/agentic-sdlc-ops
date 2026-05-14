@@ -189,7 +189,11 @@ function generateOverlay(config, rootDir) {
   );
   writeManagedFile(
     path.join(rootDir, ".github", "pull_request_template.md"),
-    loadTemplate("templates", "pr-template.md"),
+    renderTemplate(loadTemplate("templates", "pr-template.md"), {
+      issue_number: "<issue-number>",
+      acceptance_criteria: "- criterion 1\n- criterion 2",
+      verification_lines: "- command or check 1\n- command or check 2",
+    }),
     summary
   );
 

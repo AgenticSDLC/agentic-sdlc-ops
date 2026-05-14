@@ -5,6 +5,7 @@ const { handleInit } = require("./src/commands/init");
 const { handleDoctor } = require("./src/commands/doctor");
 const { handleIssuePublish } = require("./src/commands/issue-publish");
 const { handleIssueTransition } = require("./src/commands/issue-transition");
+const { handleRuntimeCombined } = require("./src/commands/runtime-combined");
 
 async function loadChalk() {
   try {
@@ -86,6 +87,7 @@ Examples:
   );
 
   const issue = program.command("issue").description("Publish and manage issue-first work items");
+  const runtime = program.command("runtime").description("Run bounded execution entrypoints");
   applyCommonOptions(
     issue
       .command("publish")
@@ -112,6 +114,20 @@ Examples:
       .action(async (options) => {
         console.log(banner);
         await handleIssueTransition(options);
+      })
+  );
+  applyCommonOptions(
+    runtime
+      .command("combined")
+      .description("Run the combined-path runtime preflight for a bounded issue")
+      .requiredOption("--issue <number>", "Issue number")
+      .option("--base <branch>", "Explicit pull request base branch")
+      .option("--no-sync-pr", "Skip PR creation or update")
+      .option("--no-push", "Skip pushing the issue branch before PR sync")
+      .option("--no-publish-blocker", "Do not publish a blocker comment when runtime start fails")
+      .action(async (options) => {
+        console.log(banner);
+        await handleRuntimeCombined(options);
       })
   );
 

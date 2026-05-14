@@ -22,7 +22,7 @@ flowchart TD
 	I -->|default or topology:combined| J[Combined topology]
 	I -->|topology:split| K[Split topology]
 
-	J --> L[Single execution path creates branch and implements]
+	J --> L[Single execution path posts plan, creates or reuses branch, and creates or updates draft PR]
 	K --> M[Planner path posts plan and handoff]
 	M --> N[Builder path creates branch and implements]
 
@@ -79,6 +79,7 @@ stateDiagram-v2
 - In split mode, planner and builder handoffs must remain visible in issue or PR context.
 - Posting a plan or handoff may happen before `in-progress`, but implementation starts only after `in-progress`.
 - Lifecycle advancement remains explicit and label-driven regardless of topology.
+- Control plane and execution substrate remain separate concerns; GitHub may host visible state even when execution runs locally or elsewhere.
 
 ## Human Interrupt Authority
 
@@ -97,6 +98,15 @@ Before implementation starts:
 - visible plan or handoff has been posted where the repository expects it
 - stop/hold conditions are clear to humans and agents
 - branch and PR strategy are known for the repository
+
+For the current `web-app` + GitHub runtime slice, a combined-path entrypoint can:
+
+- advance the issue to `in-progress`
+- publish the preflight plan visibly
+- create or reuse the issue branch
+- create or update the draft PR
+
+It does not yet imply that verification or implementation execution is fully automated by the product runtime.
 
 ## Outcome Contract
 
