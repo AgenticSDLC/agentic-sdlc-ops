@@ -58,6 +58,8 @@ If the repository uses the current combined runtime slice, include commands such
 
 ```bash
 agentic-sdlc runtime combined --issue <issue-number>
+agentic-sdlc runtime combined --issue <issue-number> --verify
+agentic-sdlc runtime combined --issue <issue-number> --finalize
 agentic-sdlc runtime combined --issue <issue-number> --no-sync-pr
 agentic-sdlc runtime combined --issue <issue-number> --base <branch>
 ```

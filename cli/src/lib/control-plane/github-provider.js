@@ -641,6 +641,39 @@ function updatePullRequest(rootDir, prNumber, options) {
   }
 }
 
+function closeIssue(rootDir, issue) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before closing issues."
+    );
+  }
+
+  execFileSync(
+    "gh",
+    ["issue", "close", String(issue), "--repo", repoSlug],
+    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+  );
+
+  const issueData = ghJson(
+    [
+      "issue",
+      "view",
+      String(issue),
+      "--repo",
+      repoSlug,
+      "--json",
+      "number,url,title,labels,state",
+    ],
+    rootDir
+  );
+
+  return {
+    repoSlug,
+    issue: issueData,
+  };
+}
+
 module.exports = {
   name: "github",
   capabilities: {
@@ -655,5 +688,6 @@ module.exports = {
     getDefaultBranch,
     createPullRequest,
     updatePullRequest,
+    closeIssue,
   },
 };

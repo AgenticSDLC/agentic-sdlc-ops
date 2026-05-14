@@ -219,10 +219,10 @@ Recommended proving order:
 1. publish the combined pilot
 2. run the combined runtime preflight
 3. complete the PR-sized change
-4. update verification results in the draft PR
-5. move it to `in-review`
+4. run runtime verification publication
+5. let the runtime move the issue to `in-review`
 6. merge only after the repository's configured validation mode is satisfied
-7. move it to `done`
+7. run runtime finalization to move the issue to `done` and close it
 
 For the default combined path, the preferred command is now:
 
@@ -238,23 +238,25 @@ This currently does all of the following:
 - creates or reuses the local issue branch
 - optionally pushes the branch
 - creates or updates the draft PR
+- with `--verify`, runs lint, build, and browser validation, publishes the PR `Verification` section, and advances the issue to `in-review`
+- with `--finalize`, detects merged linked PR state, advances the issue to `done`, and closes it
 
 This does not yet:
 
 - implement the code change for you
-- run verification commands automatically
 - mark the PR ready for review
 - merge the PR
+- perform the bounded implementation step itself
 
 Lifecycle movement should not require manual label editing anymore:
 
 ```sh
 agentic-sdlc runtime combined --issue 12
-agentic-sdlc issue transition --issue 12 --state in-review
-agentic-sdlc issue transition --issue 12 --state done
+agentic-sdlc runtime combined --issue 12 --verify
+agentic-sdlc runtime combined --issue 12 --finalize
 ```
 
-This uses the runtime entrypoint for the `in-progress` handoff and keeps later lifecycle movement scriptable while preserving non-lifecycle labels such as `topology:combined`, `frontend`, or `full-stack`.
+This uses the runtime entrypoint for the `in-progress`, `in-review`, and `done` lifecycle handoffs while preserving non-lifecycle labels such as `topology:combined`, `frontend`, or `full-stack`.
 
 Useful runtime flags:
 
@@ -262,7 +264,19 @@ Useful runtime flags:
 agentic-sdlc runtime combined --issue 12 --no-sync-pr
 agentic-sdlc runtime combined --issue 12 --no-push
 agentic-sdlc runtime combined --issue 12 --base release-candidate
+agentic-sdlc runtime combined --issue 12 --verify
+agentic-sdlc runtime combined --issue 12 --finalize
 ```
+
+`--verify` has a stronger contract for `web-app` than plain lint/build:
+
+- it requires browser validation to be configured
+- it runs lint, build, and browser validation
+- it stops on the first failed command
+- it updates the PR `Verification` section with pass/fail lines
+- it publishes a blocker comment on the issue when verification fails
+
+If Playwright or an equivalent browser validation command is not configured, `--verify` fails immediately for `web-app`.
 
 PR base branch resolution order is:
 

@@ -29,7 +29,7 @@ The kit gives you:
 - **Stable issue-first execution contract**: When can an issue move to in-progress? What must a PR include before merge? When is preview deployment required?
 - **Explicit start conditions**: Agents don't execute until an issue passes a preflight checklist. Humans can interrupt or redirect work at defined checkpoints.
 - **Visible preflight planning**: Plans appear as GitHub issue comments before implementation begins. Humans can ask questions or block work without stopping the scheduler.
-- **Issue-to-branch-to-draft-PR runtime handoff**: The current `web-app` + GitHub slice can advance executable work into a branch and draft PR without collapsing governance into hidden automation.
+- **Issue-to-branch-to-review runtime handoff**: The current `web-app` + GitHub slice can advance executable work into a branch and draft PR, publish verification, and finalize merged work without collapsing governance into hidden automation.
 - **Repository-local verification**: Each repo defines its own lint, build, browser validation, and QA gates. No central mandate. No one-size-fits-all.
 - **Compliance audits without overhead**: Run `doctor` to see exactly what's missing, incomplete, or drifting from your standard.
 
@@ -44,7 +44,7 @@ Agentic SDLC Ops takes the opposite approach: **it standardizes control flow, no
 - Your team's local practices and constraints stay embedded in your repository adapter
 - The standard is just the contract: what must be visible, when execution can begin, how humans can intervene
 
-Today, that means the product can already handle the visible handoff from issue to branch and draft PR for the first `web-app` + GitHub slice, while still leaving execution substrate choices open.
+Today, that means the product can already handle the visible handoff from issue to branch, draft PR, verification publication, and lifecycle closure for the first `web-app` + GitHub slice, while still leaving execution substrate choices open.
 
 This means:
 

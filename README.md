@@ -106,6 +106,8 @@ npx agentic-sdlc init
 npx agentic-sdlc doctor
 npx agentic-sdlc issue publish --draft pilot-web-app-combined
 npx agentic-sdlc runtime combined --issue 12
+npx agentic-sdlc runtime combined --issue 12 --verify
+npx agentic-sdlc runtime combined --issue 12 --finalize
 ```
 
 Or, if running from a local clone:
@@ -115,6 +117,8 @@ node cli/index.js init
 node cli/index.js doctor
 node cli/index.js issue publish --draft pilot-web-app-combined
 node cli/index.js runtime combined --issue 12
+node cli/index.js runtime combined --issue 12 --verify
+node cli/index.js runtime combined --issue 12 --finalize
 ```
 
 Current capabilities include:
@@ -125,7 +129,7 @@ Current capabilities include:
 - pilot issue draft generation (combined and split topologies)
 - draft publishing to GitHub with standard lifecycle labels
 - lifecycle transitions through `ready-for-build`, `in-progress`, `in-review`, and `done`
-- combined-path runtime preflight for `web-app` + GitHub, including visible plan publication, issue-branch create/reuse, and draft PR create/update
+- combined-path runtime for `web-app` + GitHub, including visible plan publication, issue-branch create/reuse, draft PR create/update, verification publication, `in-review` transition, and `done` finalization for merged PRs
 - post-install doctor checks plus standalone `doctor`
 - portable reference templates for task classes, platform actors, label catalogs, CLI SOPs, issue-first workflow docs, and environment manifests
 - reference validator scripts and GitHub workflow examples derived from proving-ground patterns

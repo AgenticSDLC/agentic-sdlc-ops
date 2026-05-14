@@ -22,7 +22,7 @@ flowchart TD
 	I -->|default or topology:combined| J[Combined topology]
 	I -->|topology:split| K[Split topology]
 
-	J --> L[Single execution path posts plan, creates or reuses branch, and creates or updates draft PR]
+	J --> L[Single execution path posts plan, creates or reuses branch, creates or updates draft PR, publishes verification, and finalizes closure]
 	K --> M[Planner path posts plan and handoff]
 	M --> N[Builder path creates branch and implements]
 
@@ -31,10 +31,10 @@ flowchart TD
 	N --> O
 	O --> P[Implement and run verification]
 	P --> Q[Open draft PR linked to issue]
-	Q --> R[Move issue and PR into in-review]
+	Q --> R[Publish verification and move issue into in-review]
 	R --> S{Review outcome}
 	S -->|changes requested| P
-	S -->|approved and merged| T[Apply done]
+	S -->|approved and merged| T[Finalize done and close issue]
 ```
 
 ## Lifecycle States And Meaning
@@ -105,8 +105,12 @@ For the current `web-app` + GitHub runtime slice, a combined-path entrypoint can
 - publish the preflight plan visibly
 - create or reuse the issue branch
 - create or update the draft PR
+- run lint, build, and browser validation through `--verify`
+- publish verification results into the PR
+- advance the issue to `in-review` after successful verification
+- finalize merged PR completion into `done` and close the issue through `--finalize`
 
-It does not yet imply that verification or implementation execution is fully automated by the product runtime.
+It still does not imply that the bounded implementation step itself is automated by the product runtime.
 
 ## Outcome Contract
 

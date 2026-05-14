@@ -136,6 +136,20 @@ function buildBlockerComment(reason) {
   ].join("\n");
 }
 
+function buildDoneComment(pullRequest) {
+  const prReference = pullRequest
+    ? `PR #${pullRequest.number} has been merged${pullRequest.url ? `: ${pullRequest.url}` : "."}`
+    : "A linked PR has been merged.";
+
+  return [
+    "## Execution Complete",
+    "",
+    prReference,
+    "",
+    "The work item has been advanced to `done` and closed.",
+  ].join("\n");
+}
+
 function buildPullRequestBody(issue, config) {
   const template = loadTemplate("templates", "pr-template.md");
   const sections = extractMarkdownSections(issue.body);
@@ -154,6 +168,83 @@ function buildPullRequestBody(issue, config) {
     acceptance_criteria: acceptanceCriteria,
     verification_lines: verificationLines.join("\n"),
   });
+}
+
+function replaceMarkdownSection(body, sectionName, nextContent) {
+  const normalizedBody = String(body || "").trim();
+  const escaped = sectionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(## ${escaped}\\n\\n)([\\s\\S]*?)(\\n(?=## )|$)`);
+
+  if (pattern.test(normalizedBody)) {
+    return normalizedBody.replace(
+      pattern,
+      (_, heading, _existing, suffix) => `${heading}${nextContent}\n${suffix}`
+    );
+  }
+
+  return `${normalizedBody}\n\n## ${sectionName}\n\n${nextContent}`;
+}
+
+function buildVerificationCommands(config) {
+  const commands = [config.verification.lint, config.verification.build];
+  if (config.browserValidation && config.browserValidation.supported) {
+    commands.push(config.browserValidation.command);
+  }
+  return [...new Set(commands.filter(Boolean))];
+}
+
+function validateVerificationPrerequisites(config) {
+  const findings = [];
+
+  if (!config.browserValidation || !config.browserValidation.supported) {
+    findings.push(
+      "Playwright or another browser validation command is not configured. `web-app` verification requires browser validation for user-visible work."
+    );
+  }
+
+  return {
+    ok: findings.length === 0,
+    findings,
+  };
+}
+
+function runVerification(rootDir, commands) {
+  const results = [];
+
+  for (const command of commands) {
+    try {
+      execFileSync("/bin/zsh", ["-lc", command], {
+        cwd: rootDir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      results.push({ command, status: "passed" });
+    } catch (error) {
+      const stderr = error && error.stderr ? String(error.stderr).trim() : "";
+      const stdout = error && error.stdout ? String(error.stdout).trim() : "";
+      results.push({
+        command,
+        status: "failed",
+        detail: stderr || stdout || "Command failed.",
+      });
+      break;
+    }
+  }
+
+  return {
+    ok: results.every((result) => result.status === "passed"),
+    results,
+  };
+}
+
+function buildVerificationSectionContent(verificationRun) {
+  return verificationRun.results
+    .map((result) =>
+      result.status === "passed"
+        ? `- ${result.command} - passed`
+        : `- ${result.command} - failed (${result.detail})`
+    )
+    .join("\n");
 }
 
 function buildPullRequestTitle(issue) {
@@ -180,13 +271,19 @@ function prepareCombinedRuntime(rootDir, issue, config) {
 
 module.exports = {
   buildBlockerComment,
+  buildDoneComment,
   buildBranchName,
   buildPreflightPlan,
   buildPullRequestBody,
   buildPullRequestTitle,
+  buildVerificationCommands,
+  buildVerificationSectionContent,
   createOrSwitchBranch,
   getCurrentBranchName,
   getCurrentUpstreamBaseBranch,
   pushBranch,
+  replaceMarkdownSection,
+  runVerification,
+  validateVerificationPrerequisites,
   prepareCombinedRuntime,
 };
