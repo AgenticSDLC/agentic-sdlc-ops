@@ -218,7 +218,7 @@ Recommended proving order:
 
 1. publish the combined pilot
 2. run the combined runtime preflight
-3. complete the PR-sized change
+3. run the bounded implementation step
 4. run runtime verification publication
 5. let the runtime move the issue to `in-review`
 6. merge only after the repository's configured validation mode is satisfied
@@ -238,20 +238,21 @@ This currently does all of the following:
 - creates or reuses the local issue branch
 - optionally pushes the branch
 - creates or updates the draft PR
+- with `--implement`, invokes the configured local execution backend for the bounded implementation step
 - with `--verify`, runs lint, build, and browser validation, publishes the PR `Verification` section, and advances the issue to `in-review`
 - with `--finalize`, detects merged linked PR state, advances the issue to `done`, and closes it
 
 This does not yet:
 
-- implement the code change for you
 - mark the PR ready for review
 - merge the PR
-- perform the bounded implementation step itself
+- ship a hosted dispatcher backend yet
 
 Lifecycle movement should not require manual label editing anymore:
 
 ```sh
 agentic-sdlc runtime combined --issue 12
+agentic-sdlc runtime combined --issue 12 --implement
 agentic-sdlc runtime combined --issue 12 --verify
 agentic-sdlc runtime combined --issue 12 --finalize
 ```
@@ -264,9 +265,20 @@ Useful runtime flags:
 agentic-sdlc runtime combined --issue 12 --no-sync-pr
 agentic-sdlc runtime combined --issue 12 --no-push
 agentic-sdlc runtime combined --issue 12 --base release-candidate
+agentic-sdlc runtime combined --issue 12 --implement
+agentic-sdlc runtime combined --issue 12 --implement --implementation-command "pnpm agentic:implement"
 agentic-sdlc runtime combined --issue 12 --verify
 agentic-sdlc runtime combined --issue 12 --finalize
 ```
+
+`--implement` uses the first public execution backend:
+
+- backend: `local-cli`
+- default command source: repository script `agentic:implement`
+- per-run override: `--implementation-command "<command>"`
+- visible outcome: issue comment with implementation result
+
+If neither a repository `agentic:implement` script nor an explicit `--implementation-command` is provided, the runtime blocks rather than guessing how to implement the task.
 
 `--verify` has a stronger contract for `web-app` than plain lint/build:
 

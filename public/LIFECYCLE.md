@@ -22,7 +22,7 @@ flowchart TD
 	I -->|default or topology:combined| J[Combined topology]
 	I -->|topology:split| K[Split topology]
 
-	J --> L[Single execution path posts plan, creates or reuses branch, creates or updates draft PR, publishes verification, and finalizes closure]
+	J --> L[Single execution path posts plan, creates or reuses branch, creates or updates draft PR, runs bounded implementation, publishes verification, and finalizes closure]
 	K --> M[Planner path posts plan and handoff]
 	M --> N[Builder path creates branch and implements]
 
@@ -105,12 +105,13 @@ For the current `web-app` + GitHub runtime slice, a combined-path entrypoint can
 - publish the preflight plan visibly
 - create or reuse the issue branch
 - create or update the draft PR
+- invoke the configured bounded implementation command through the local execution backend
 - run lint, build, and browser validation through `--verify`
 - publish verification results into the PR
 - advance the issue to `in-review` after successful verification
 - finalize merged PR completion into `done` and close the issue through `--finalize`
 
-It still does not imply that the bounded implementation step itself is automated by the product runtime.
+The current implementation backend is local-command driven. Hosted dispatcher and runner-backed backends remain separate substrate work.
 
 ## Outcome Contract
 

@@ -1,8 +1,10 @@
 const path = require("path");
 const { getControlPlane } = require("../lib/control-plane");
+const { getExecutionBackend } = require("../lib/execution-backends");
 const { buildConfig, inferProfile, inspectTarget } = require("../lib/web-app-context");
 const {
   buildBlockerComment,
+  buildImplementationComment,
   buildDoneComment,
   buildPullRequestBody,
   buildPullRequestTitle,
@@ -33,6 +35,7 @@ async function handleRuntimeCombined(args) {
 
   const config = buildConfig(rootDir, { ...args, profile }, inspection);
   const controlPlane = getControlPlane(config);
+  const executionBackend = getExecutionBackend(config);
   const current = controlPlane.capabilities.getIssue(rootDir, args.issue);
 
   if (args.finalize) {
@@ -174,6 +177,42 @@ async function handleRuntimeCombined(args) {
     }
   }
 
+  let implementationResult = null;
+  if (args.implement) {
+    implementationResult = executionBackend.runImplementation(
+      rootDir,
+      {
+        issue: current.issue,
+        branch: prepared.branch,
+        repoSlug: current.repoSlug,
+        pullRequest: prResult ? prResult.result.pullRequest : null,
+        config,
+      },
+      { implementationCommand: args.implementationCommand }
+    );
+
+    controlPlane.capabilities.addIssueComment(
+      rootDir,
+      args.issue,
+      buildImplementationComment(implementationResult)
+    );
+
+    if (!implementationResult.ok) {
+      if (args.publishBlocker !== false) {
+        controlPlane.capabilities.addIssueComment(
+          rootDir,
+          args.issue,
+          buildBlockerComment(
+            implementationResult.detail || implementationResult.summary
+          )
+        );
+      }
+      throw new Error(
+        implementationResult.detail || implementationResult.summary
+      );
+    }
+  }
+
   let verificationRun = null;
   let reviewTransition = null;
   if (args.verify) {
@@ -267,6 +306,10 @@ async function handleRuntimeCombined(args) {
   printKeyValue("Branch Push", pushResult ? "published" : "skipped");
   printKeyValue("PR Base", prBaseBranch || "not-resolved");
   printKeyValue("PR Sync", prResult ? prResult.mode : "skipped");
+  printKeyValue(
+    "Implementation",
+    implementationResult ? implementationResult.state : "skipped"
+  );
   if (prResult) {
     printKeyValue("PR", `#${prResult.result.pullRequest.number}`);
     printKeyValue("PR URL", prResult.result.pullRequest.url);
@@ -277,7 +320,9 @@ async function handleRuntimeCombined(args) {
   printFooter(
     reviewTransition
       ? "Combined runtime verification complete. The issue is now in `in-review`; merge only after the repository's review and validation expectations are satisfied."
-      : "Runtime handoff complete. Implement the bounded change on the issue branch, update verification results in the PR, then rerun with `--verify` when you want to publish results and advance to `in-review`."
+      : implementationResult
+        ? "Combined runtime implementation complete. Review the branch changes, then rerun with `--verify` when you want to publish results and advance to `in-review`."
+        : "Runtime handoff complete. Implement the bounded change on the issue branch, or rerun with `--implement` to invoke the configured execution backend, then rerun with `--verify` when you want to publish results and advance to `in-review`."
   );
 }
 

@@ -136,6 +136,26 @@ function buildBlockerComment(reason) {
   ].join("\n");
 }
 
+function buildImplementationComment(result) {
+  const lines = [
+    "## Implementation Result",
+    "",
+    `State: ${result.state}`,
+    result.command ? `Command: \`${result.command}\`` : "Command: not configured",
+    "",
+  ];
+
+  if (result.summary) {
+    lines.push(result.summary, "");
+  }
+
+  if (result.detail) {
+    lines.push("### Detail", result.detail, "");
+  }
+
+  return lines.join("\n").trim();
+}
+
 function buildDoneComment(pullRequest) {
   const prReference = pullRequest
     ? `PR #${pullRequest.number} has been merged${pullRequest.url ? `: ${pullRequest.url}` : "."}`
@@ -271,6 +291,7 @@ function prepareCombinedRuntime(rootDir, issue, config) {
 
 module.exports = {
   buildBlockerComment,
+  buildImplementationComment,
   buildDoneComment,
   buildBranchName,
   buildPreflightPlan,

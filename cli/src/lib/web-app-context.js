@@ -411,6 +411,12 @@ function buildConfig(rootDir, args, inspection) {
     previewStatus,
     humanQaGate,
     browserValidation,
+    execution: {
+      backend: "local-cli",
+      implementationCommand: scripts["agentic:implement"]
+        ? packageManagerCommand(packageManager, "agentic:implement")
+        : null,
+    },
     verification: {
       lint: scripts.lint
         ? packageManagerCommand(packageManager, "lint")

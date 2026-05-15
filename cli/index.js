@@ -122,6 +122,8 @@ Examples:
       .description("Run the combined-path runtime preflight for a bounded issue")
       .requiredOption("--issue <number>", "Issue number")
       .option("--base <branch>", "Explicit pull request base branch")
+      .option("--implement", "Run the configured bounded implementation step through the execution backend")
+      .option("--implementation-command <command>", "Explicit bounded implementation command for this run")
       .option("--verify", "Run verification, publish results to the PR, and transition to in-review on success")
       .option("--finalize", "Finalize a merged linked PR by transitioning the issue to done and closing it")
       .option("--no-sync-pr", "Skip PR creation or update")
