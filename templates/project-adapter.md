@@ -82,6 +82,17 @@ Also document:
 
 Document the branch naming convention and whether branch creation is automated.
 
+## Implementation Backend Contract
+
+Document the local or hosted implementation command contract.
+
+Include:
+
+- which command performs the bounded code-change step
+- whether the runtime or the command owns commit and push behavior
+- whether the command is forbidden from creating extra branches or mutating PR state directly
+- what post-run state the runtime should be able to rely on
+
 ## Required Pre-Read Docs
 
 - list required architecture docs
@@ -95,6 +106,16 @@ List the exact checks that must pass before work is considered complete.
 - command 2
 
 If the repository uses task classes, document whether verification changes by class and where those defaults live.
+
+## Scope Rules
+
+Document how the repository expresses bounded change scope.
+
+Include:
+
+- whether `Target Files` must be literal file or directory paths
+- whether named subsystem aliases are allowed
+- whether labels such as `docs-only` or `config-only` impose extra path constraints
 
 ## User-Visible Change Policy
 

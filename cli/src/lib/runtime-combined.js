@@ -64,6 +64,32 @@ function getCurrentBranchName(rootDir) {
   }).trim();
 }
 
+function getHeadSha(rootDir) {
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: rootDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+}
+
+function getWorktreeStatus(rootDir) {
+  return execFileSync("git", ["status", "--porcelain"], {
+    cwd: rootDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+}
+
+function getChangedFilesSince(rootDir, baseSha) {
+  const output = execFileSync("git", ["diff", "--name-only", `${baseSha}..HEAD`], {
+    cwd: rootDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+
+  return output ? output.split("\n").map((line) => line.trim()).filter(Boolean) : [];
+}
+
 function getCurrentUpstreamBaseBranch(rootDir) {
   try {
     const upstream = execFileSync(
@@ -89,6 +115,18 @@ function pushBranch(rootDir, branchName) {
     stdio: ["ignore", "ignore", "pipe"],
   });
   return { branchName, pushed: true };
+}
+
+function commitAllChanges(rootDir, message) {
+  execFileSync("git", ["add", "-A"], {
+    cwd: rootDir,
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  execFileSync("git", ["commit", "-m", message], {
+    cwd: rootDir,
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  return { committed: true, message };
 }
 
 function buildPreflightPlan(issue, config) {
@@ -141,12 +179,21 @@ function buildImplementationComment(result) {
     "## Implementation Result",
     "",
     `State: ${result.state}`,
+    result.branch ? `Branch: \`${result.branch}\`` : null,
     result.command ? `Command: \`${result.command}\`` : "Command: not configured",
     "",
-  ];
+  ].filter(Boolean);
 
   if (result.summary) {
     lines.push(result.summary, "");
+  }
+
+  if (result.commitSha) {
+    lines.push(`Commit: \`${result.commitSha}\``, "");
+  }
+
+  if (result.changedFiles && result.changedFiles.length) {
+    lines.push("### Changed Files", ...result.changedFiles.map((file) => `- \`${file}\``), "");
   }
 
   if (result.detail) {
@@ -271,6 +318,85 @@ function buildPullRequestTitle(issue) {
   return `feat: ${String(issue.title || "").replace(/^\[TASK\]\s*/i, "").trim()}`;
 }
 
+function parseTargetScope(issue, config = {}) {
+  const sections = extractMarkdownSections(issue.body);
+  const rawScope =
+    sections.get("target files") || sections.get("target subsystem") || "";
+  const subsystemAliases =
+    (config.scopeRules && config.scopeRules.subsystemAliases) || {};
+
+  const entries = String(rawScope)
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
+    .filter(Boolean)
+    .filter((line) => !/^path\/or\/subsystem-\d+\b/i.test(line))
+    .map((line) => line.replace(/^`|`$/g, ""))
+    .map((line) => line.replace(/\/+$/, ""))
+    .filter(Boolean);
+
+  const expandedEntries = entries.flatMap((entry) => {
+    const alias = subsystemAliases[entry];
+    return Array.isArray(alias) && alias.length ? alias : [entry];
+  });
+
+  return [...new Set(expandedEntries)];
+}
+
+function isPathWithinScope(filePath, scopeEntry) {
+  const normalizedFile = String(filePath || "").replace(/^\.\/+/, "");
+  const normalizedScope = String(scopeEntry || "").replace(/^\.\/+/, "");
+
+  if (!normalizedScope) {
+    return false;
+  }
+
+  if (normalizedFile === normalizedScope) {
+    return true;
+  }
+
+  return normalizedFile.startsWith(`${normalizedScope}/`);
+}
+
+function evaluateImplementationScope(issue, changedFiles, config = {}) {
+  const scopeEntries = parseTargetScope(issue, config);
+  const labelConstraints =
+    (config.scopeRules && config.scopeRules.labelConstraints) || {};
+  const labels = (issue.labels || []).map((label) =>
+    typeof label === "string" ? label : label.name
+  );
+  const constrainedEntries = labels.flatMap((label) =>
+    Array.isArray(labelConstraints[label]) ? labelConstraints[label] : []
+  );
+  const effectiveScope = [...new Set([...scopeEntries, ...constrainedEntries])];
+
+  if (!effectiveScope.length) {
+    return {
+      ok: false,
+      findings: [
+        "The issue must declare concrete `Target Files` entries before bounded implementation can be considered complete.",
+      ],
+      scopeEntries: effectiveScope,
+      outOfScopeFiles: changedFiles || [],
+    };
+  }
+
+  const outOfScopeFiles = (changedFiles || []).filter(
+    (filePath) => !effectiveScope.some((entry) => isPathWithinScope(filePath, entry))
+  );
+
+  return {
+    ok: outOfScopeFiles.length === 0,
+    findings:
+      outOfScopeFiles.length === 0
+        ? []
+        : [
+            `Implementation changed files outside declared scope: ${outOfScopeFiles.join(", ")}.`,
+          ],
+    scopeEntries: effectiveScope,
+    outOfScopeFiles,
+  };
+}
+
 function prepareCombinedRuntime(rootDir, issue, config) {
   const currentState = getCurrentLifecycleState(issue);
   const transitionDecision =
@@ -300,8 +426,13 @@ module.exports = {
   buildVerificationCommands,
   buildVerificationSectionContent,
   createOrSwitchBranch,
+  commitAllChanges,
+  evaluateImplementationScope,
   getCurrentBranchName,
+  getChangedFilesSince,
+  getHeadSha,
   getCurrentUpstreamBaseBranch,
+  getWorktreeStatus,
   pushBranch,
   replaceMarkdownSection,
   runVerification,

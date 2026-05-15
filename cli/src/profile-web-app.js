@@ -147,6 +147,81 @@ const ISSUE_REQUIRED_SECTIONS = [
 ];
 const HOLD_LABELS = ["hold", "needs-human"];
 const TOPOLOGY_LABELS = ["topology:combined", "topology:split"];
+const DEFAULT_SCOPE_RULES = {
+  subsystemAliases: {
+    storefront: [
+      "app",
+      "pages",
+      "src/app",
+      "src/pages",
+      "src/components",
+      "components",
+      "public",
+    ],
+    api: [
+      "app/api",
+      "pages/api",
+      "src/app/api",
+      "src/pages/api",
+      "src/server",
+      "server",
+      "lib/api",
+    ],
+    checkout: [
+      "app/checkout",
+      "pages/checkout",
+      "src/app/checkout",
+      "src/pages/checkout",
+      "components/checkout",
+      "src/components/checkout",
+    ],
+    account: [
+      "app/account",
+      "pages/account",
+      "src/app/account",
+      "src/pages/account",
+      "components/account",
+      "src/components/account",
+    ],
+    admin: [
+      "app/admin",
+      "pages/admin",
+      "src/app/admin",
+      "src/pages/admin",
+      "components/admin",
+      "src/components/admin",
+    ],
+  },
+  labelConstraints: {
+    "docs-only": [
+      "README.md",
+      "docs",
+      ".github",
+      ".agentic",
+    ],
+    "config-only": [
+      ".github",
+      ".agentic",
+      "package.json",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "tsconfig.json",
+      "tsconfig.tsbuildinfo",
+      "next.config.js",
+      "next.config.mjs",
+      "vite.config.js",
+      "vite.config.ts",
+      "remix.config.js",
+      "vercel.json",
+      "amplify.yml",
+      "serverless.yml",
+      "template.yaml",
+      "cdk.json",
+      ".env.example",
+    ],
+  },
+};
 
 function getDefaultConfig(targetDir) {
   return {
@@ -163,6 +238,7 @@ function getDefaultConfig(targetDir) {
     labelPack: "standard-with-routing",
     holdLabels: HOLD_LABELS,
     topologyLabels: TOPOLOGY_LABELS,
+    scopeRules: DEFAULT_SCOPE_RULES,
     standardLabels: STANDARD_LABELS,
     workflowScaffolding: "recommended",
     accelerators: ["task-classes", "gh-cli-sop", "issue-first-workflow", "env-manifest"],
@@ -176,6 +252,7 @@ module.exports = {
   ISSUE_REQUIRED_SECTIONS,
   HOLD_LABELS,
   TOPOLOGY_LABELS,
+  DEFAULT_SCOPE_RULES,
   APP_SHAPES,
   PLAN_VISIBILITY,
   DEFAULT_TOPOLOGY,

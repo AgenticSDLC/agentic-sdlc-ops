@@ -9,6 +9,7 @@ const {
   ISSUE_REQUIRED_SECTIONS,
   STANDARD_LABELS,
   TOPOLOGY_LABELS,
+  DEFAULT_SCOPE_RULES,
   getDefaultConfig,
 } = require("../profile-web-app");
 const { confirm } = require("../prompt");
@@ -405,6 +406,7 @@ function buildConfig(rootDir, args, inspection) {
     issueRequiredSections: ISSUE_REQUIRED_SECTIONS,
     standardLabels: STANDARD_LABELS,
     topologyLabels: TOPOLOGY_LABELS,
+    scopeRules: DEFAULT_SCOPE_RULES,
     requiredPreReadDocs,
     validationMode,
     previewProvider,

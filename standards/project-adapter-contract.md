@@ -103,6 +103,17 @@ Include:
 - branch creation source if automated
 - any restrictions on creating additional branches
 
+### `implementation_backend_contract`
+
+Document the repository's bounded implementation command contract.
+
+Include:
+
+- which command performs the code-change step
+- whether the runtime or the command owns commit and push behavior
+- whether the command may create branches or mutate PR state directly
+- what branch and worktree state must hold when the command exits
+
 ### `required_pre_read_docs`
 
 List the repository documents agents must read before implementing work.
@@ -123,6 +134,16 @@ Include:
 - mandatory commands
 - conditional checks by change type
 - any environment prerequisites
+
+### `scope_rules`
+
+Document how the repository encodes allowed implementation scope.
+
+Include:
+
+- whether `Target Files` entries must be literal paths
+- whether named subsystem aliases are allowed and how they map to paths
+- whether labels such as `docs-only` or `config-only` impose extra scope constraints
 
 ### `user_visible_change_policy`
 

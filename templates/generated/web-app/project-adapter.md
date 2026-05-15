@@ -68,6 +68,14 @@ Supporting labels:
 
 - `issue-<number>-<slug>`
 
+## Implementation Backend Contract
+
+- bounded implementation command: `agentic:implement` when the repository defines it
+- runtime owns branch integrity checks, commit creation, push, and PR synchronization
+- implementation command must stay on the issue branch
+- implementation command must not create extra branches or mutate PR state directly
+- implementation success requires changes to remain within declared `Target Files` or mapped subsystem scope
+
 ## Required Pre-Read Docs
 
 {{required_pre_read_docs}}
@@ -75,6 +83,12 @@ Supporting labels:
 ## Verification Commands
 
 {{verification_commands}}
+
+## Scope Rules
+
+- `Target Files` should use concrete file or directory paths when possible
+- `Target Subsystem` may use repository-recognized subsystem names when the profile maps them to concrete paths
+- `docs-only` and `config-only` labels further constrain which paths may change
 
 ## Browser Validation
 

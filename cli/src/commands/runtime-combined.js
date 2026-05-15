@@ -10,9 +10,14 @@ const {
   buildPullRequestTitle,
   buildVerificationCommands,
   buildVerificationSectionContent,
+  commitAllChanges,
   createOrSwitchBranch,
+  evaluateImplementationScope,
   getCurrentBranchName,
+  getChangedFilesSince,
+  getHeadSha,
   getCurrentUpstreamBaseBranch,
+  getWorktreeStatus,
   pushBranch,
   replaceMarkdownSection,
   runVerification,
@@ -179,6 +184,7 @@ async function handleRuntimeCombined(args) {
 
   let implementationResult = null;
   if (args.implement) {
+    const headBeforeImplementation = getHeadSha(rootDir);
     implementationResult = executionBackend.runImplementation(
       rootDir,
       {
@@ -190,6 +196,140 @@ async function handleRuntimeCombined(args) {
       },
       { implementationCommand: args.implementationCommand }
     );
+
+    const branchAfterImplementation = getCurrentBranchName(rootDir);
+    implementationResult = {
+      ...implementationResult,
+      branch: branchAfterImplementation,
+    };
+
+    if (implementationResult.ok && branchAfterImplementation !== prepared.branch) {
+      implementationResult = {
+        ...implementationResult,
+        ok: false,
+        state: "blocked",
+        summary:
+          "Implementation command exited on a different branch than the issue branch.",
+        detail: `Expected branch \`${prepared.branch}\`, found \`${branchAfterImplementation || "none"}\`.`,
+      };
+    }
+
+    const worktreeStatus = getWorktreeStatus(rootDir);
+    if (implementationResult.ok && worktreeStatus) {
+      commitAllChanges(
+        rootDir,
+        `feat(issue-${current.issue.number}): implementation updates`
+      );
+    }
+
+    const headAfterImplementation = getHeadSha(rootDir);
+    const branchAdvanced = headAfterImplementation !== headBeforeImplementation;
+
+    if (!branchAdvanced) {
+      implementationResult = {
+        ...implementationResult,
+        ok: false,
+        state: "blocked",
+        summary:
+          "Implementation command exited successfully but did not advance the issue branch.",
+        detail:
+          "The runtime requires an observable branch update before implementation can be considered complete.",
+      };
+    } else {
+      implementationResult = {
+        ...implementationResult,
+        commitSha: headAfterImplementation,
+      };
+    }
+
+    const changedFiles = getChangedFilesSince(rootDir, headBeforeImplementation);
+    implementationResult = {
+      ...implementationResult,
+      changedFiles,
+    };
+
+    if (implementationResult.ok) {
+      const scopeEvaluation = evaluateImplementationScope(
+        current.issue,
+        changedFiles,
+        config
+      );
+      if (!scopeEvaluation.ok) {
+        implementationResult = {
+          ...implementationResult,
+          ok: false,
+          state: "blocked",
+          summary:
+            "Implementation changed files outside the issue's declared target scope.",
+          detail: scopeEvaluation.findings.join(" "),
+        };
+      }
+    }
+
+    const worktreeStatusAfterCommit = getWorktreeStatus(rootDir);
+    if (implementationResult.ok && worktreeStatusAfterCommit) {
+      implementationResult = {
+        ...implementationResult,
+        ok: false,
+        state: "blocked",
+        summary:
+          "Implementation left the repository with uncommitted or untracked changes.",
+        detail:
+          "The combined runtime requires a clean repository state before implementation can be considered complete.",
+      };
+    }
+
+    if (implementationResult.ok && args.syncPr === false) {
+      implementationResult = {
+        ...implementationResult,
+        ok: false,
+        state: "blocked",
+        summary:
+          "Implementation advanced the local branch, but PR synchronization is disabled.",
+        detail:
+          "Re-run without `--no-sync-pr` so the runtime can push the branch and keep the issue-to-PR path truthful.",
+      };
+    }
+
+    if (implementationResult.ok) {
+      pushResult = pushBranch(rootDir, prepared.branch);
+      const syncedPr = controlPlane.capabilities.getPullRequestForBranch(
+        rootDir,
+        prepared.branch
+      );
+      if (!syncedPr.pullRequest) {
+        throw new Error(
+          "Implementation advanced the branch, but no open PR was found for the issue branch after push."
+        );
+      }
+      prResult = {
+        mode: "updated",
+        result: controlPlane.capabilities.updatePullRequest(
+          rootDir,
+          syncedPr.pullRequest.number,
+          {
+            title: syncedPr.pullRequest.title,
+            body: syncedPr.pullRequest.body,
+          }
+        ),
+      };
+
+      const finalBranch = getCurrentBranchName(rootDir);
+      const finalWorktreeStatus = getWorktreeStatus(rootDir);
+      if (finalBranch !== prepared.branch || finalWorktreeStatus) {
+        implementationResult = {
+          ...implementationResult,
+          ok: false,
+          state: "blocked",
+          summary:
+            "Implementation did not finish in a clean pushable state on the issue branch.",
+          detail:
+            finalBranch !== prepared.branch
+              ? `Expected final branch \`${prepared.branch}\`, found \`${finalBranch || "none"}\`.`
+              : "The repository still has uncommitted or untracked changes after implementation push.",
+        };
+      }
+    }
 
     controlPlane.capabilities.addIssueComment(
       rootDir,

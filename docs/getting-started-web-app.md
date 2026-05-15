@@ -277,8 +277,28 @@ agentic-sdlc runtime combined --issue 12 --finalize
 - default command source: repository script `agentic:implement`
 - per-run override: `--implementation-command "<command>"`
 - visible outcome: issue comment with implementation result
+- runtime owns commit creation, push, and PR truth after the command runs
 
 If neither a repository `agentic:implement` script nor an explicit `--implementation-command` is provided, the runtime blocks rather than guessing how to implement the task.
+
+The intended ownership split is:
+
+- `agentic:implement`
+  - perform the bounded code-change step
+  - stay on the issue branch
+  - do not create extra branches
+  - do not mutate PR state directly
+- `agentic-sdlc runtime combined`
+  - inspect branch and worktree state
+  - commit and push when appropriate
+  - re-sync the PR path
+  - block if the branch, scope, or repo state is not truthful
+
+For `web-app`, bounded scope is currently enforced using:
+
+- literal `Target Files` path entries
+- named subsystem aliases defined by the profile
+- label-owned constraints such as `docs-only` and `config-only`
 
 `--verify` has a stronger contract for `web-app` than plain lint/build:
 
