@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require("fs");
+import { readFileSync } from "node:fs";
 
-const commitMessage = fs.readFileSync(0, "utf8").trim();
+const commitMessage = readFileSync(0, "utf8").trim();
 const conventionalCommitPattern =
   /^(feat|fix|docs|chore|refactor|test|build|ci|perf|style)(\(.+\))?: .+/;
 

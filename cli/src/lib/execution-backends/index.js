@@ -1,17 +1,14 @@
-const { runLocalCliBackend } = require("./local-cli");
+const { getAgentBackend } = require("../agent-backends");
 
 function getExecutionBackend(config = {}) {
   const backendName =
-    (config.execution && config.execution.backend) || "local-cli";
-
-  if (backendName !== "local-cli") {
-    throw new Error(`Unsupported execution backend \`${backendName}\`.`);
-  }
+    (config.execution && config.execution.agentBackend) || "openai-api";
 
   return {
     name: backendName,
-    runImplementation(rootDir, context, options) {
-      return runLocalCliBackend(rootDir, context, options);
+    async runImplementation(rootDir, context) {
+      const backend = getAgentBackend(backendName);
+      return backend.run(rootDir, context);
     },
   };
 }

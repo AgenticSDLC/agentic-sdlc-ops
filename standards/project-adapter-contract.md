@@ -143,7 +143,7 @@ Include:
 
 - whether `Target Files` entries must be literal paths
 - whether named subsystem aliases are allowed and how they map to paths
-- whether labels such as `docs-only` or `config-only` impose extra scope constraints
+- whether labels such as `docs-only` or `config-only` narrow the declared scope further
 
 ### `user_visible_change_policy`
 

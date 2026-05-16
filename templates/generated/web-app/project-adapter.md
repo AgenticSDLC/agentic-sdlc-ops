@@ -42,6 +42,12 @@ Issue comments and PR comments are both valid control surfaces.
 
 Once a PR exists, the PR thread becomes the preferred steering surface.
 
+## Merge Policy
+
+- default behavior is auto-merge after required verification and policy checks pass
+- `merge:human-required` is the explicit human-in-the-middle merge gate
+- `hold` and `needs-human` are pause or interruption controls, not the primary long-term merge policy label
+
 ## State Labels
 
 Lifecycle:
@@ -61,6 +67,7 @@ Supporting labels:
 - `full-stack`
 - `config-only`
 - `docs-only`
+- `merge:human-required`
 - `hold`
 - `needs-human`
 
@@ -88,7 +95,7 @@ Supporting labels:
 
 - `Target Files` should use concrete file or directory paths when possible
 - `Target Subsystem` may use repository-recognized subsystem names when the profile maps them to concrete paths
-- `docs-only` and `config-only` labels further constrain which paths may change
+- `docs-only` and `config-only` labels narrow the declared scope further; they do not widen it
 
 ## Browser Validation
 

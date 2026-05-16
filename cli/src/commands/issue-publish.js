@@ -2,8 +2,17 @@ const path = require("path");
 const { getControlPlane } = require("../lib/control-plane");
 const { LIFECYCLE_STATE_SET, LIFECYCLE_STATES } = require("../lib/lifecycle");
 const { resolveDraftPath, parseDraftFile } = require("../lib/drafts");
-const { buildConfig, inferProfile, inspectTarget } = require("../lib/web-app-context");
-const { printFooter, printKeyValue, printPathList, printSection } = require("../ui");
+const {
+  buildConfig,
+  inferProfile,
+  inspectTarget,
+} = require("../lib/web-app-context");
+const {
+  printFooter,
+  printKeyValue,
+  printPathList,
+  printSection,
+} = require("../ui");
 
 function normalizeLabels(values) {
   if (!values) {
@@ -23,16 +32,17 @@ function uniqueLabels(labels) {
 
 function getDefaultIssueLabels(config, options) {
   const lifecycle = options.state || "ready-for-build";
-  const topology = options.topology === "split" || config.topology === "split"
-    ? "topology:split"
-    : "topology:combined";
+  const topology =
+    options.topology === "split" || config.topology === "split"
+      ? "topology:split"
+      : "topology:combined";
   return [lifecycle, topology, "agent-builder", "frontend"];
 }
 
 function printPublishResult(details, options = {}) {
   const { includeFooter = true } = options;
   printSection("Issue Published");
-  printKeyValue("Draft", details.draft);
+  printKeyValue("Spec", details.draft);
   printKeyValue("Title", details.title);
   printKeyValue("Repository", details.repoSlug);
   if (details.issueNumber) {
@@ -44,7 +54,10 @@ function printPublishResult(details, options = {}) {
   printPathList("Labels", details.labels);
 
   if (includeFooter) {
-    printFooter("Move the issue to `in-progress` when execution is authorized, then post the preflight plan.");
+    const nextStep = details.issueNumber
+      ? `Next run: agentic-sdlc runtime combined --issue ${details.issueNumber}. This will implement, verify, and advance the issue to in-review.`
+      : "Next run: agentic-sdlc runtime combined --issue <issue-number>. This will implement, verify, and advance the issue to in-review.";
+    printFooter(nextStep);
   }
 }
 
@@ -55,23 +68,24 @@ async function handleIssuePublish(args) {
 
   if (profile !== "web-app") {
     throw new Error(
-      "Unable to infer a supported profile. Pass `--profile web-app` explicitly if this is a web application."
+      "Unable to infer a supported profile. Pass `--profile web-app` explicitly if this is a web application.",
     );
   }
 
   const config = buildConfig(rootDir, { ...args, profile }, inspection);
   const controlPlane = getControlPlane(config);
-  const draftPath = resolveDraftPath(rootDir, args.draft);
+  const draftPath = resolveDraftPath(rootDir, args.spec);
   const draft = parseDraftFile(draftPath);
 
   const extraLabels = normalizeLabels(args.label);
-  const labels = args.defaultLabels === false
-    ? uniqueLabels(extraLabels)
-    : uniqueLabels([...getDefaultIssueLabels(config, args), ...extraLabels]);
+  const labels =
+    args.defaultLabels === false
+      ? uniqueLabels(extraLabels)
+      : uniqueLabels([...getDefaultIssueLabels(config, args), ...extraLabels]);
 
   if (args.state && !LIFECYCLE_STATE_SET.has(args.state)) {
     throw new Error(
-      `Unsupported lifecycle state \`${args.state}\`. Use one of: ${LIFECYCLE_STATES.join(", ")}.`
+      `Unsupported lifecycle state \`${args.state}\`. Use one of: ${LIFECYCLE_STATES.join(", ")}.`,
     );
   }
 
@@ -85,9 +99,11 @@ async function handleIssuePublish(args) {
         issueUrl: null,
         labels,
       },
-      { includeFooter: false }
+      { includeFooter: false },
     );
-    printFooter("Dry run only. Re-run without `--dry-run` to create the GitHub issue.");
+    printFooter(
+      "Dry run only. Re-run without `--dry-run` to create the GitHub issue.",
+    );
     return;
   }
 
@@ -96,10 +112,14 @@ async function handleIssuePublish(args) {
     config.standardLabels,
   );
   if (labelSync.status === "unavailable") {
-    throw new Error(`Unable to sync standard GitHub labels: ${labelSync.reason}`);
+    throw new Error(
+      `Unable to sync standard GitHub labels: ${labelSync.reason}`,
+    );
   }
   if (labelSync.status === "skipped") {
-    throw new Error("No GitHub origin remote detected. Connect the repository before publishing an issue.");
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before publishing an issue.",
+    );
   }
 
   const created = controlPlane.capabilities.createIssue(rootDir, {
@@ -108,7 +128,7 @@ async function handleIssuePublish(args) {
     labels,
   });
 
-  printSection("GitHub Labels");
+  printSection("GitHub Label Status");
   printKeyValue("Repository", labelSync.repoSlug || created.repoSlug);
   printKeyValue("Status", labelSync.status);
   printPathList("Created", labelSync.created || []);

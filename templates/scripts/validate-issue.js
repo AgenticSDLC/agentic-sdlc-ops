@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const fs = require("fs");
+import { readFileSync } from "node:fs";
 
 const eventPath = process.env.GITHUB_EVENT_PATH;
 if (!eventPath) {
@@ -7,7 +7,7 @@ if (!eventPath) {
   process.exit(1);
 }
 
-const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
+const event = JSON.parse(readFileSync(eventPath, "utf8"));
 const issue = event.issue;
 
 if (!issue || !issue.body) {

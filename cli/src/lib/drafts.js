@@ -12,7 +12,7 @@ function slugToTitle(slug) {
 
 function resolveDraftPath(rootDir, draftArg) {
   if (!draftArg) {
-    throw new Error("Pass `--draft <name>` or a draft path.");
+    throw new Error("Pass `--spec <name>` or a spec file path.");
   }
 
   const candidates = [];
@@ -27,7 +27,7 @@ function resolveDraftPath(rootDir, draftArg) {
   const resolved = candidates.find((candidate) => fs.existsSync(candidate));
   if (!resolved) {
     throw new Error(
-      `Unable to find draft \`${draftArg}\`. Expected a file path or \`.agentic/issues/drafts/${draftArg.replace(/\.md$/i, "")}.md\`.`
+      `Unable to find spec \`${draftArg}\`. Expected a file path or \`.agentic/issues/drafts/${draftArg.replace(/\.md$/i, "")}.md\`.`
     );
   }
 

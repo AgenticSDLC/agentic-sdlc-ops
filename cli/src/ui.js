@@ -19,7 +19,9 @@ function colorState(state) {
     "remediation-required": "1;35",
   };
 
-  return color(palette[state] || "1;37", state);
+  const displayState = state === "warning" ? "advisory" : state;
+
+  return color(palette[state] || "1;37", displayState);
 }
 
 function printSection(title) {
@@ -62,6 +64,15 @@ function printFooter(message) {
   console.log(message);
 }
 
+function printPhase(emoji, label) {
+  console.log("");
+  console.log(`${emoji} ${color("1;36", label)}`);
+}
+
+function printDetail(label, value) {
+  console.log(`  ${color("2;37", label)}: ${value}`);
+}
+
 module.exports = {
   color,
   colorState,
@@ -71,4 +82,6 @@ module.exports = {
   printList,
   printPathList,
   printFooter,
+  printPhase,
+  printDetail,
 };

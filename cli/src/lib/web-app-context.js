@@ -414,10 +414,7 @@ function buildConfig(rootDir, args, inspection) {
     humanQaGate,
     browserValidation,
     execution: {
-      backend: "local-cli",
-      implementationCommand: scripts["agentic:implement"]
-        ? packageManagerCommand(packageManager, "agentic:implement")
-        : null,
+      agentBackend: "openai-api",
     },
     verification: {
       lint: scripts.lint

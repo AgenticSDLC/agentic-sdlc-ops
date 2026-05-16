@@ -59,6 +59,17 @@ Also document:
 - whether the PR becomes the preferred steering surface after creation
 - what status update the agent must post after pausing
 
+## Merge Policy
+
+Document the repository default merge mode and the explicit human-merge override.
+
+Recommended default:
+
+- auto-merge after required verification and policy checks pass
+- `merge:human-required` enforces human-in-the-middle merge
+
+Clarify that `hold` and `needs-human` are interruption signals, not the primary long-term merge policy label.
+
 ## State Labels
 
 Lifecycle:
@@ -71,6 +82,7 @@ Lifecycle:
 Supporting labels:
 
 - list local supporting labels here
+- include `merge:human-required` when the repository supports explicit manual merge gating
 
 Also document:
 
@@ -115,7 +127,7 @@ Include:
 
 - whether `Target Files` must be literal file or directory paths
 - whether named subsystem aliases are allowed
-- whether labels such as `docs-only` or `config-only` impose extra path constraints
+- whether labels such as `docs-only` or `config-only` narrow the declared scope further
 
 ## User-Visible Change Policy
 

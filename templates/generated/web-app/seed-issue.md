@@ -2,25 +2,24 @@
 
 ## Context
 
-This pilot issue validates the agentic SDLC overlay for {{repository_name}} using a small user-visible storefront change.
+This pilot issue validates the agentic SDLC overlay for {{repository_name}} using a minimal, verifiable homepage change.
 
 ## Requirements
 
-- refine one catalog or product-listing UI behavior
-- stay within a single bounded subsystem
-- avoid checkout, payment, auth-model, and architecture changes
+- add a visible heading to the homepage
+- stay within a single page file
+- avoid routing, auth, API, or architecture changes
 
 ## Acceptance Criteria
 
-- the UI change is visible in the product-listing or catalog experience
-- screenshots are attached in the PR
+- the homepage renders an `<h1>` with the text "Welcome to {{repository_name}}"
+- Playwright can assert the heading is visible (`page.getByRole('heading', { level: 1 })`)
 - `{{build_command}}` passes
 - task-relevant verification is recorded in the PR
 
 ## Target Files
 
-- product listing UI files
-- related styles or presentation components only
+- `app/page.tsx` or `src/app/page.tsx`
 
 ## Notes
 

@@ -1,391 +1,159 @@
 # Getting Started: Web App Overlay
 
-This guide covers the expected path for applying `agentic-sdlc-ops` to a scaffolded web application.
+Use this page for the shortest path from a fresh web app repo to the first issue-driven PR.
 
-This is an overlay workflow. It does not create the app itself.
+Scope: this guide is for combined topology, specifically - one agentic runtime path for planning, building, and verification.
 
-## Shared Responsibility
+NOTE: For split topology, with "independent" agents (planner/builder/verifier), use the dedicated split guide instead of this combined topology page.
 
-Adopting this kit is a shared-responsibility model.
+For detailed lifecycle and architecture explanation, see [public/LIFECYCLE.md](../public/LIFECYCLE.md).
 
-`agentic-sdlc-ops` is responsible for:
+## 🚀 Quickstart: Combined Topology - Issue To PR Merge Lifecycle Automation 🤖
 
-- installing the SDLC overlay
-- generating the local execution contract
-- enforcing the issue and PR workflow shape
-- checking for missing repo-level operating pieces
+This document uses GitHub as the target repo. GitLab will be supported in the future. If the target repository does not have a GitHub origin remote and `gh` access, stop here and wire GitHub first.
 
-The user or adopting repository is still responsible for:
+1. Set up your agent API key.
 
-- choosing and configuring the remote hosting platform
-- setting up CI and required status checks
-- connecting preview deployments for user-visible review
-- defining and enforcing human QA gates
-- maintaining provider credentials, secrets, and cloud access
-
-This distinction matters because a repository can be fully healthy from an overlay perspective while still lacking preview deploys, CI, or hosted human validation.
-
-## Execution Model
-
-For the default `web-app` path, keep these three concepts separate:
-
-- control plane: GitHub
-- execution environment: local machine
-- topology: `combined`
-
-That means:
-
-- the issue, labels, and PR live on GitHub
-- implementation, lint, and build run locally
-- there is no dispatcher or remote runner in the default path
-- one execution path handles planning, implementation, and verification
-
-## Prerequisites
-
-Before running `agentic-sdlc init --profile web-app`, the target repository should already have:
-
-- a local project directory
-- a git repository
-- a scaffolded web app
-- a `package.json`
-- a working lint command
-- a working build command
-
-Optional but HIGHLY recommended:
-
-- a GitHub remote already configured
-- an initial commit already pushed
-- `gh` authenticated for the target GitHub account when you want labels installed automatically
-
-## Example Target
-
-Example scaffold-first flow:
+The runtime uses an LLM to implement code changes. Export your API key before proceeding:
 
 ```sh
-cd ~[YOURWORKSPACE]/frontier-sdlc
-npx create-next-app@latest temp-app
-cd temp-app
-git init
-git add .
-git commit -m "Initial scaffold"
-gh repo create temp-app --public --source=. --remote=origin --push
+export OPENAI_API_KEY=<your-key>
 ```
 
-## Link The CLI Locally
+This is the only credential the runtime needs beyond GitHub CLI access.
 
-During local development of `agentic-sdlc-ops`, link the CLI once from this repository:
+2. Create or open a scaffolded web app repo with GitHub remote.
+
+```sh
+cd ~[YOURWORKSPACE]/yourFolder
+npx create-next-app@latest your-app-name
+cd your-app-name
+gh repo create your-app-name --public --source=. --remote=origin --push
+```
+
+`create-next-app` automatically initializes git and commits the scaffold. No manual `git init` or `git add` needed.
+
+3. Link the CLI locally (one time).
 
 ```sh
 cd ~[YOURWORKSPACE]/agentic-sdlc-ops
 pnpm link --global
-```
-
-Then verify the command is visible:
-
-```sh
 agentic-sdlc --help
 ```
 
-This expects `PNPM_HOME` to be on your shell `PATH`.
-
-Check:
+4. Initialize the overlay in the target repo.
 
 ```sh
-echo $PNPM_HOME
-```
-
-Expected example:
-
-```sh
-~/Library/pnpm
-```
-
-## Apply The Overlay
-
-From the target project directory:
-
-```sh
-cd ~[YOURWORKSPACE]/frontier-sdlc/temp-app
+cd ~[YOURWORKSPACE]/yourFolder/your-app-name
 agentic-sdlc init
 ```
 
-The CLI should infer the obvious in a scaffolded Next.js repo:
+`init` will detect your API key and confirm the agent backend. It also offers to install Playwright for browser validation.
 
-- `profile: web-app`
-- `stack: nextjs-npm`
-- standard install mode
-
-Use explicit flags only when you want to override detection.
-
-When a GitHub remote exists and `gh` is authenticated, `init` should also install the standard issue lifecycle and routing labels automatically.
-
-If the repository is not connected to GitHub yet, use:
+5. Run doctor.
 
 ```sh
-agentic-sdlc init --local-only
-```
-
-Rerunning `agentic-sdlc init` should also be safe and useful over time:
-
-- weak existing `AGENTS.md` files are strengthened with a managed overlay block
-- legacy generated project adapters are upgraded in place
-- older custom project adapters keep their local notes and receive an appended managed block when the web-app contract gains new required sections
-
-## Verify The Overlay
-
-Run:
-
-```sh
-cd ~[YOURWORKSPACE]/frontier-sdlc/temp-app
 agentic-sdlc doctor
 ```
 
-`doctor` should verify both the local overlay files and the standard GitHub labels when GitHub is connected.
+Doctor checks overlay health, confirms your agent API key is available, and reports any warnings. Warnings are not blockers — continue to the next step.
 
-This does not imply GitHub Actions or a GitHub runner is executing the task. By default, GitHub is the control plane and execution remains local.
-
-## Publish The First Issue
-
-Once the overlay is installed, publish a local draft into GitHub with:
+6. Preview Github Issue -> publish --dry-run.
 
 ```sh
-agentic-sdlc issue publish --draft pilot-web-app-flow
+agentic-sdlc issue publish --spec pilot-web-app-combined --dry-run
 ```
 
-This should:
-
-- read a draft such as `.agentic/issues/drafts/pilot-web-app-combined.md`
-- create the GitHub issue
-- ensure the standard label set exists
-- apply default initial labels:
-  - `ready-for-build`
-  - `topology:combined`
-  - `agent-builder`
-  - `frontend`
-
-If you want to start the issue in a different lifecycle state or add routing labels explicitly, use overrides such as:
+- explicit path also works -> .agentic/issues/drafts:
 
 ```sh
-agentic-sdlc issue publish --draft pilot-web-app-split --topology split
-agentic-sdlc issue publish --draft add-dummy-page --state in-progress --label full-stack
+agentic-sdlc issue publish --spec .agentic/issues/drafts/pilot-web-app-combined.md --dry-run
 ```
 
-Use `--dry-run` when you want to inspect the resolved title and labels without creating the issue:
+7. Publish the issue (live - no dry-run).
 
 ```sh
-agentic-sdlc issue publish --draft add-dummy-page --dry-run
+agentic-sdlc issue publish --spec pilot-web-app-combined
 ```
 
-## Validation Modes
-
-The generated adapter should make validation mode explicit.
-
-Typical progression:
-
-- `local-only`
-  - local lint and build checks only
-  - suitable for bootstrap and early repo bring-up
-- `preview-required`
-  - preview deployment exists
-  - a human validates the change in the hosted preview before merge
-- `production-gated`
-  - preview validation plus an explicit approval gate before merge or deploy
-
-For user-visible work, `local-only` is a starting point, not the long-term target.
-
-If the repository has no preview deployment yet, `doctor` should warn that human validation is still missing for hosted user-visible review.
-
-That warning is intentional: preview infrastructure and CI are part of the repository's responsibility, not something the overlay can invent automatically.
-
-Playwright should also be treated as part of the baseline web validation contract.
-
-Recommended minimum:
-
-- install `@playwright/test`
-- add a browser validation command such as `npm run test:e2e`
-- use that command in acceptance criteria for user-visible tasks
-
-If Playwright is not configured, `doctor` should warn even if lint and build pass.
-
-## Pilot Issues And Lifecycle
-
-`init` now generates two pilot drafts so both default topologies can be proven quickly:
-
-- `.agentic/issues/drafts/pilot-web-app-combined.md`
-- `.agentic/issues/drafts/pilot-web-app-split.md`
-
-Recommended proving order:
-
-1. publish the combined pilot
-2. run the combined runtime preflight
-3. run the bounded implementation step
-4. run runtime verification publication
-5. let the runtime move the issue to `in-review`
-6. merge only after the repository's configured validation mode is satisfied
-7. run runtime finalization to move the issue to `done` and close it
-
-For the default combined path, the preferred command is now:
+NOTE: You'll get an issue number in the output. This is important for the next step. If you miss it, you can find the issue in your GitHub Issues list for the repository, or run:
 
 ```sh
-agentic-sdlc runtime combined --issue 12
+agentic-sdlc issue list
 ```
 
-This currently does all of the following:
+to see recent issues (if your CLI version supports it).
 
-- validates that the issue is executable
-- advances `ready-for-build` to `in-progress` when allowed
-- posts a visible preflight plan to the issue
-- creates or reuses the local issue branch
-- optionally pushes the branch
-- creates or updates the draft PR
-- with `--implement`, invokes the configured local execution backend for the bounded implementation step
-- with `--verify`, runs lint, build, and browser validation, publishes the PR `Verification` section, and advances the issue to `in-review`
-- with `--finalize`, detects merged linked PR state, advances the issue to `done`, and closes it
-
-This does not yet:
-
-- mark the PR ready for review
-- merge the PR
-- ship a hosted dispatcher backend yet
-
-Lifecycle movement should not require manual label editing anymore:
+8. 🚀 Run the runtime.
 
 ```sh
-agentic-sdlc runtime combined --issue 12
-agentic-sdlc runtime combined --issue 12 --implement
-agentic-sdlc runtime combined --issue 12 --verify
-agentic-sdlc runtime combined --issue 12 --finalize
+agentic-sdlc runtime combined --issue <issue-number>
 ```
 
-This uses the runtime entrypoint for the `in-progress`, `in-review`, and `done` lifecycle handoffs while preserving non-lifecycle labels such as `topology:combined`, `frontend`, or `full-stack`.
+This is the "run it and forget it" step. One command does everything:
 
-Useful runtime flags:
+- ⛩️ validates the issue is ready (required sections filled in, no hold labels, topology label present)
+- transitions the issue from `ready-for-build` to `in-progress`
+- publishes a visible plan as a comment on the issue
+- creates the issue branch and opens a draft PR
+- 🤖 invokes the configured agent backend to implement the code changes
+- runs lint, build, and browser validation
+- advances the issue to `in-review`
+
+When it finishes, you'll have a PR with code changes, passing verification, and the issue in `in-review`.
+
+🚏 If any step fails, the runtime stops, publishes the reason on the issue, and tells you what to fix. Rerun the same command after fixing.
+
+For a detailed walkthrough of the output, see [preflight-deep-dive.md](preflight-deep-dive.md).
+
+9. Merge and finalize.
+
+After reviewing the PR and merging it on GitHub:
 
 ```sh
-agentic-sdlc runtime combined --issue 12 --no-sync-pr
-agentic-sdlc runtime combined --issue 12 --no-push
-agentic-sdlc runtime combined --issue 12 --base release-candidate
-agentic-sdlc runtime combined --issue 12 --implement
-agentic-sdlc runtime combined --issue 12 --implement --implementation-command "pnpm agentic:implement"
-agentic-sdlc runtime combined --issue 12 --verify
-agentic-sdlc runtime combined --issue 12 --finalize
+agentic-sdlc runtime combined --issue <issue-number> --finalize
 ```
 
-`--implement` uses the first public execution backend:
+This advances the issue to `done` and closes it. The lifecycle is complete.
 
-- backend: `local-cli`
-- default command source: repository script `agentic:implement`
-- per-run override: `--implementation-command "<command>"`
-- visible outcome: issue comment with implementation result
-- runtime owns commit creation, push, and PR truth after the command runs
+## Recovery
 
-If neither a repository `agentic:implement` script nor an explicit `--implementation-command` is provided, the runtime blocks rather than guessing how to implement the task.
+If the runtime fails partway through:
 
-The intended ownership split is:
+- **Implementation failed** — fix the issue contract or agent config, rerun step 8
+- **Verification failed** — fix the code on the branch, then: `agentic-sdlc runtime combined --issue <issue-number> --verify`
+- **Finalize blocked** — merge the PR first, then rerun with `--finalize`
 
-- `agentic:implement`
-  - perform the bounded code-change step
-  - stay on the issue branch
-  - do not create extra branches
-  - do not mutate PR state directly
-- `agentic-sdlc runtime combined`
-  - inspect branch and worktree state
-  - commit and push when appropriate
-  - re-sync the PR path
-  - block if the branch, scope, or repo state is not truthful
+## Validation Mode: Keep It Simple
 
-For `web-app`, bounded scope is currently enforced using:
+Validation mode controls what proof is required before merge.
 
-- literal `Target Files` path entries
-- named subsystem aliases defined by the profile
-- label-owned constraints such as `docs-only` and `config-only`
+| Mode               | What It Checks                                                          | When To Use It                                           | Merge Expectation                            |
+| ------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------- |
+| `local-only`       | local lint, local build, browser validation command (for web-app)       | initial bootstrap, early repo bring-up                   | local proof only                             |
+| `preview-required` | everything in `local-only` plus hosted preview validation by a human    | team can deploy preview environments per PR              | preview must be validated before merge       |
+| `production-gated` | everything in `preview-required` plus explicit production approval gate | mature repos with release controls and change management | merge/deploy requires approval gate evidence |
 
-`--verify` has a stronger contract for `web-app` than plain lint/build:
+Example mindset for `preview-required`:
 
-- it requires browser validation to be configured
-- it runs lint, build, and browser validation
-- it stops on the first failed command
-- it updates the PR `Verification` section with pass/fail lines
-- it publishes a blocker comment on the issue when verification fails
+- PR opens and your platform posts a preview URL (for example, Vercel preview deployment).
+- A human reviewer opens the preview URL and checks the acceptance criteria in a real browser.
+- Reviewer records that validation in the PR (comment/checklist/approval based on team policy).
+- Only then is the PR treated as merge-ready.
 
-If Playwright or an equivalent browser validation command is not configured, `--verify` fails immediately for `web-app`.
+Recommended default for a new repo: start at `local-only`, then move to `preview-required` as soon as preview deployments and human QA are reliable.
 
-PR base branch resolution order is:
+Where this is configured: `.agentic/project-adapter.md`.
 
-1. `--base <branch>` if explicitly passed
-2. the current branch's immediate upstream branch, when available
-3. the existing PR base branch, if the issue branch already has an open PR
-4. the repository default branch from the provider
+## Where To Read More
 
-If validation mode is still `local-only`, treat merge as a local bootstrap proof only. User-visible repositories should add CI, preview deploys, and human QA before relying on auto-merge behavior.
+- Lifecycle flow and terminology: [public/LIFECYCLE.md](../public/LIFECYCLE.md)
+- Product direction: [docs/vision.md](vision.md)
+- Design intent: [docs/design-principles.md](design-principles.md)
+- Workflow mapping reference: [adoption/workflow-mapping.md](../adoption/workflow-mapping.md)
+- Runtime output explained: [preflight-deep-dive.md](preflight-deep-dive.md)
 
-Common next steps:
-
-- Vercel
-  - connect the GitHub repo to Vercel
-  - require preview review for user-visible PRs
-- AWS
-  - configure an environment-specific preview or review app path
-  - document the human validation step in the adapter
-
-## Expected Output
-
-The CLI should create:
-
-- `AGENTS.md`
-- `.agentic/project-adapter.md`
-- `.github/ISSUE_TEMPLATE/agentic-task.md`
-- `.github/pull_request_template.md`
-- `.agentic/issues/drafts/pilot-web-app-combined.md`
-- `.agentic/issues/drafts/pilot-web-app-split.md`
-- `docs/TASK-CLASSES.md`
-- `docs/PLATFORM-ACTORS.md`
-- `docs/LABEL-CATALOG.md`
-- `docs/GH-CLI-SOP.md`
-- `docs/ISSUE-FIRST-WORKFLOW.md`
-- `docs/ENVIRONMENT-MANIFEST.md`
-- `scripts/validate-issue.js`
-- `scripts/validate-pr.js`
-- `scripts/validate-commit-message.js`
-
-When GitHub is connected, the CLI should also create or update the standard labels:
-
-- `ready-for-build`
-- `in-progress`
-- `in-review`
-- `done`
-- `topology:combined`
-- `topology:split`
-- `agent-builder`
-- `frontend`
-- `backend`
-- `full-stack`
-- `config-only`
-- `docs-only`
-- `hold`
-- `needs-human`
-
-Recommended workflow examples may also be installed into `.github/workflows/`.
-
-If `AGENTS.md` already exists but is weak, `init` should append a managed `agentic-sdlc` block instead of replacing the whole file.
-
-If `.agentic/project-adapter.md` already exists, `init` should not blindly clobber it:
-
-- legacy generated adapters should be upgraded in place
-- adapters that already satisfy the current contract may be preserved
-- older custom adapters missing current sections should receive a managed update block instead of being overwritten
-
-## Typical Results
-
-- `init` should report `ready` when a GitHub remote exists
-- `init` should report `ready-local-only` when GitHub wiring is not ready yet
-- `init` should print a doctor result automatically after generation
-- `doctor` should report `pass`, `warning`, or `local-only` for a healthy install
-- `doctor` should report `blocked` or `remediation-required` when setup is incomplete
-
-## Remove The Local Link
-
-If you want to remove the globally linked local CLI later:
+## Remove Global Link (Optional)
 
 ```sh
 cd ~[YOURWORKSPACE]/agentic-sdlc-ops

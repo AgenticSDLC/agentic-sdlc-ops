@@ -1,3 +1,25 @@
+function listIssues(rootDir, options = {}) {
+  const repo = options.repo || getRepoSlug(rootDir);
+  const limit = options.limit || 10;
+
+  if (!repo) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before listing issues.",
+    );
+  }
+
+  const args = [
+    "issue",
+    "list",
+    "--repo",
+    repo,
+    "--limit",
+    String(limit),
+    "--json",
+    "number,title,state,url",
+  ];
+  return ghJson(args, rootDir);
+}
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -15,7 +37,9 @@ function parseGitHubRepo(remoteUrl) {
     return sshMatch[1];
   }
 
-  const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)$/);
+  const httpsMatch = normalized.match(
+    /^https:\/\/github\.com\/([^/]+\/[^/]+)$/,
+  );
   if (httpsMatch) {
     return httpsMatch[1];
   }
@@ -68,7 +92,7 @@ function listRepoLabels(rootDir, repoSlug) {
   while (true) {
     const labels = ghJson(
       ["api", `repos/${repoSlug}/labels?per_page=100&page=${page}`],
-      rootDir
+      rootDir,
     );
     if (!Array.isArray(labels) || labels.length === 0) {
       break;
@@ -120,7 +144,7 @@ function syncLabels(rootDir, labels) {
             "--description",
             label.description,
           ],
-          { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+          { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
         );
         created.push(label.name);
         continue;
@@ -128,7 +152,8 @@ function syncLabels(rootDir, labels) {
 
       const colorMatches =
         String(current.color || "").toLowerCase() === label.color.toLowerCase();
-      const descriptionMatches = (current.description || "") === label.description;
+      const descriptionMatches =
+        (current.description || "") === label.description;
       if (colorMatches && descriptionMatches) {
         skipped.push(label.name);
         continue;
@@ -147,7 +172,7 @@ function syncLabels(rootDir, labels) {
           "--description",
           label.description,
         ],
-        { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+        { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
       );
       updated.push(label.name);
     }
@@ -193,7 +218,9 @@ function checkLabels(rootDir, labels) {
 
   try {
     const existing = listRepoLabels(rootDir, repoSlug);
-    const missing = labels.map((label) => label.name).filter((name) => !existing.has(name));
+    const missing = labels
+      .map((label) => label.name)
+      .filter((name) => !existing.has(name));
     return {
       status: "ok",
       repoSlug,
@@ -222,7 +249,7 @@ function updateLifecycle(rootDir, options) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before updating issue labels."
+      "No GitHub origin remote detected. Connect the repository before updating issue labels.",
     );
   }
 
@@ -236,11 +263,11 @@ function updateLifecycle(rootDir, options) {
       "--json",
       "number,url,title,labels,state",
     ],
-    rootDir
+    rootDir,
   );
   const currentLabels = issueData.labels.map((label) => label.name);
   const nextLabels = new Set(
-    currentLabels.filter((label) => !LIFECYCLE_STATES.includes(label))
+    currentLabels.filter((label) => !LIFECYCLE_STATES.includes(label)),
   );
   nextLabels.add(nextState);
 
@@ -264,7 +291,7 @@ function updateLifecycle(rootDir, options) {
       "--add-label",
       [...nextLabels].join(","),
     ],
-    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
   );
 
   const updatedIssue = ghJson(
@@ -277,7 +304,7 @@ function updateLifecycle(rootDir, options) {
       "--json",
       "number,url,title,labels,state",
     ],
-    rootDir
+    rootDir,
   );
 
   return {
@@ -290,7 +317,7 @@ function getIssue(rootDir, issue) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before reading issue state."
+      "No GitHub origin remote detected. Connect the repository before reading issue state.",
     );
   }
 
@@ -304,7 +331,7 @@ function getIssue(rootDir, issue) {
       "--json",
       "number,url,title,body,labels,state",
     ],
-    rootDir
+    rootDir,
   );
 
   return {
@@ -317,7 +344,7 @@ function getLinkedPullRequests(rootDir, issueNumber) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before reading pull request state."
+      "No GitHub origin remote detected. Connect the repository before reading pull request state.",
     );
   }
 
@@ -350,7 +377,7 @@ function getLinkedPullRequests(rootDir, issueNumber) {
       }
     `,
     { owner, name, issueNumber: Number(issueNumber) },
-    rootDir
+    rootDir,
   );
 
   const nodes =
@@ -367,7 +394,11 @@ function getLinkedPullRequests(rootDir, issueNumber) {
   const seen = new Set();
   for (const node of nodes) {
     const source = node && node.source;
-    if (!source || source.__typename !== "PullRequest" || seen.has(source.number)) {
+    if (
+      !source ||
+      source.__typename !== "PullRequest" ||
+      seen.has(source.number)
+    ) {
       continue;
     }
     seen.add(source.number);
@@ -385,7 +416,7 @@ function createIssue(rootDir, options) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before publishing an issue."
+      "No GitHub origin remote detected. Connect the repository before publishing an issue.",
     );
   }
 
@@ -403,6 +434,8 @@ function createIssue(rootDir, options) {
       title,
       "--body-file",
       bodyPath,
+      "--assignee",
+      "@me",
     ];
     for (const label of labels) {
       args.push("--label", label);
@@ -419,7 +452,7 @@ function createIssue(rootDir, options) {
         "--json",
         "number,url,title,labels,state",
       ],
-      rootDir
+      rootDir,
     );
 
     return {
@@ -431,15 +464,42 @@ function createIssue(rootDir, options) {
   }
 }
 
+function listIssueComments(rootDir, issue) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    return { comments: [] };
+  }
+
+  try {
+    const comments = ghJson(
+      [
+        "issue",
+        "view",
+        String(issue),
+        "--repo",
+        repoSlug,
+        "--json",
+        "comments",
+      ],
+      rootDir,
+    );
+    return { comments: comments.comments || [] };
+  } catch {
+    return { comments: [] };
+  }
+}
+
 function addIssueComment(rootDir, issue, body) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before publishing issue comments."
+      "No GitHub origin remote detected. Connect the repository before publishing issue comments.",
     );
   }
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentic-sdlc-comment-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "agentic-sdlc-comment-"),
+  );
   const bodyPath = path.join(tempDir, "comment-body.md");
   fs.writeFileSync(bodyPath, body, "utf8");
 
@@ -455,7 +515,7 @@ function addIssueComment(rootDir, issue, body) {
         "--body-file",
         bodyPath,
       ],
-      { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+      { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
     );
 
     const issueData = ghJson(
@@ -468,7 +528,7 @@ function addIssueComment(rootDir, issue, body) {
         "--json",
         "number,url,title",
       ],
-      rootDir
+      rootDir,
     );
 
     return {
@@ -484,7 +544,7 @@ function getPullRequestForBranch(rootDir, branchName) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before reading pull request state."
+      "No GitHub origin remote detected. Connect the repository before reading pull request state.",
     );
   }
 
@@ -501,7 +561,7 @@ function getPullRequestForBranch(rootDir, branchName) {
       "--json",
       "number,title,url,isDraft,body,headRefName,baseRefName",
     ],
-    rootDir
+    rootDir,
   );
 
   return {
@@ -514,13 +574,13 @@ function getDefaultBranch(rootDir) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before reading repository defaults."
+      "No GitHub origin remote detected. Connect the repository before reading repository defaults.",
     );
   }
 
   const repository = ghJson(
     ["repo", "view", repoSlug, "--json", "defaultBranchRef"],
-    rootDir
+    rootDir,
   );
 
   return {
@@ -539,7 +599,7 @@ function createPullRequest(rootDir, options) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before creating pull requests."
+      "No GitHub origin remote detected. Connect the repository before creating pull requests.",
     );
   }
 
@@ -563,8 +623,10 @@ function createPullRequest(rootDir, options) {
         title,
         "--body-file",
         bodyPath,
+        "--assignee",
+        "@me",
       ],
-      rootDir
+      rootDir,
     );
 
     const pullRequest = ghJson(
@@ -577,7 +639,7 @@ function createPullRequest(rootDir, options) {
         "--json",
         "number,title,url,isDraft,body,headRefName,baseRefName",
       ],
-      rootDir
+      rootDir,
     );
 
     return {
@@ -594,7 +656,7 @@ function updatePullRequest(rootDir, prNumber, options) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
     throw new Error(
-      "No GitHub origin remote detected. Connect the repository before updating pull requests."
+      "No GitHub origin remote detected. Connect the repository before updating pull requests.",
     );
   }
 
@@ -616,7 +678,7 @@ function updatePullRequest(rootDir, prNumber, options) {
         "--body-file",
         bodyPath,
       ],
-      { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+      { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] },
     );
 
     const pullRequest = ghJson(
@@ -629,7 +691,7 @@ function updatePullRequest(rootDir, prNumber, options) {
         "--json",
         "number,title,url,isDraft,body,headRefName,baseRefName",
       ],
-      rootDir
+      rootDir,
     );
 
     return {
@@ -641,19 +703,48 @@ function updatePullRequest(rootDir, prNumber, options) {
   }
 }
 
-function closeIssue(rootDir, issue) {
+function markPullRequestReady(rootDir, prNumber) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
-    throw new Error(
-      "No GitHub origin remote detected. Connect the repository before closing issues."
-    );
+    throw new Error("No GitHub origin remote detected.");
   }
 
   execFileSync(
     "gh",
-    ["issue", "close", String(issue), "--repo", repoSlug],
-    { cwd: rootDir, stdio: ["ignore", "ignore", "pipe"] }
+    ["pr", "ready", String(prNumber), "--repo", repoSlug],
+    { cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   );
+
+  return { prNumber, ready: true };
+}
+
+function mergePullRequest(rootDir, prNumber) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error("No GitHub origin remote detected.");
+  }
+
+  execFileSync(
+    "gh",
+    ["pr", "merge", String(prNumber), "--repo", repoSlug, "--squash", "--delete-branch"],
+    { cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+  );
+
+  return { prNumber, merged: true };
+}
+
+function closeIssue(rootDir, issue) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before closing issues.",
+    );
+  }
+
+  execFileSync("gh", ["issue", "close", String(issue), "--repo", repoSlug], {
+    cwd: rootDir,
+    stdio: ["ignore", "ignore", "pipe"],
+  });
 
   const issueData = ghJson(
     [
@@ -665,7 +756,7 @@ function closeIssue(rootDir, issue) {
       "--json",
       "number,url,title,labels,state",
     ],
-    rootDir
+    rootDir,
   );
 
   return {
@@ -684,10 +775,14 @@ module.exports = {
     updateLifecycle,
     createIssue,
     addIssueComment,
+    listIssueComments,
+    markPullRequestReady,
+    mergePullRequest,
     getPullRequestForBranch,
     getDefaultBranch,
     createPullRequest,
     updatePullRequest,
     closeIssue,
+    listIssues,
   },
 };

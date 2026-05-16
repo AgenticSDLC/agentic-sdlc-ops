@@ -99,28 +99,33 @@ You can run the CLI commands using any of these methods:
 - `pnpm agentic-sdlc ...` (if installed as a dependency)
 - `node cli/index.js ...` (from a local clone)
 
-Examples:
+First successful path for a fresh Next.js repo with a GitHub remote:
 
 ```sh
+export OPENAI_API_KEY=<your-key>
 npx agentic-sdlc init
 npx agentic-sdlc doctor
-npx agentic-sdlc issue publish --draft pilot-web-app-combined
-npx agentic-sdlc runtime combined --issue 12
-npx agentic-sdlc runtime combined --issue 12 --implement
-npx agentic-sdlc runtime combined --issue 12 --verify
-npx agentic-sdlc runtime combined --issue 12 --finalize
+npx agentic-sdlc issue publish --spec pilot-web-app-combined
+npx agentic-sdlc runtime combined --issue 1
+npx agentic-sdlc runtime combined --issue 1 --finalize
 ```
+
+Important:
+
+- the runtime implements, verifies, and advances the lifecycle in one step
+- `--finalize` is run after the PR is merged
+- the issue number in the example is whatever GitHub created during `issue publish`
+- `OPENAI_API_KEY` must be set for the agent backend to generate code
 
 Or, if running from a local clone:
 
 ```sh
+export OPENAI_API_KEY=<your-key>
 node cli/index.js init
 node cli/index.js doctor
-node cli/index.js issue publish --draft pilot-web-app-combined
-node cli/index.js runtime combined --issue 12
-node cli/index.js runtime combined --issue 12 --implement
-node cli/index.js runtime combined --issue 12 --verify
-node cli/index.js runtime combined --issue 12 --finalize
+node cli/index.js issue publish --spec pilot-web-app-combined
+node cli/index.js runtime combined --issue 1
+node cli/index.js runtime combined --issue 1 --finalize
 ```
 
 Current capabilities include:
@@ -128,8 +133,8 @@ Current capabilities include:
 - profile-aware prerequisite evaluation and stack detection
 - idempotent overlay installation from repository templates
 - managed overlay updates for existing `AGENTS.md` and project adapter files
-- pilot issue draft generation (combined and split topologies)
-- draft publishing to GitHub with standard lifecycle labels
+- pilot issue spec generation (combined and split topologies)
+- spec publishing to GitHub with standard lifecycle labels
 - lifecycle transitions through `ready-for-build`, `in-progress`, `in-review`, and `done`
 - combined-path runtime for `web-app` + GitHub, including visible plan publication, issue-branch create/reuse, draft PR create/update, a pluggable local implementation backend, verification publication, `in-review` transition, and `done` finalization for merged PRs
 - post-install doctor checks plus standalone `doctor`

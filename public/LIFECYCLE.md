@@ -51,7 +51,16 @@ Common supporting labels (not lifecycle states):
 - `needs-details`: issue contract failed validation and needs clarification
 - `topology:combined`: planner and executor behavior are handled in one path
 - `topology:split`: planner and builder are separated with explicit handoff
+- `merge:human-required`: explicit manual merge gate (human-in-the-middle)
 - `hold`, `needs-human`: pause or escalation controls
+
+## Merge Policy
+
+Default merge behavior is automation-first once repository verification and lifecycle conditions are satisfied.
+
+Use `merge:human-required` when a human must review and merge manually.
+
+`hold`, `needs-human`, and comment-based stop signals remain pause or interruption controls. They are not the primary long-term manual-merge policy signal.
 
 ## Label State Diagram
 

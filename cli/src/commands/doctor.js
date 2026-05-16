@@ -7,6 +7,7 @@ const {
   inferProfile,
   inspectTarget,
 } = require("../lib/web-app-context");
+const { detectAvailableBackends } = require("../lib/agent-backends");
 const { printFooter, printKeyValue, printList, printSection, printState } = require("../ui");
 
 function printDoctorResult(state, details, findings, options = {}) {
@@ -120,6 +121,16 @@ function assessDoctor(rootDir, args) {
   if (!config.browserValidation.supported) {
     findings.push(
       "Playwright is not configured. User-visible web work should include a browser validation command such as `npm run test:e2e`."
+    );
+    if (state === "pass") {
+      state = "warning";
+    }
+  }
+
+  const availableBackends = detectAvailableBackends();
+  if (availableBackends.length === 0) {
+    findings.push(
+      "No agent API key detected. The runtime needs an API key to implement code. Export OPENAI_API_KEY (or another supported key) before running the runtime."
     );
     if (state === "pass") {
       state = "warning";

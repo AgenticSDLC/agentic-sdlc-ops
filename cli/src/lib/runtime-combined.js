@@ -34,6 +34,17 @@ function ensureCleanWorktree(rootDir, branchName) {
   }
 }
 
+function ensureNoPreexistingDirtyStateOnBranch(rootDir, branchName) {
+  const currentBranch = getCurrentBranchName(rootDir);
+  const status = getWorktreeStatus(rootDir);
+
+  if (currentBranch === branchName && status) {
+    throw new Error(
+      "Working tree is not clean on the issue branch. Commit, stash, or discard pre-existing changes before running the combined runtime."
+    );
+  }
+}
+
 function createOrSwitchBranch(rootDir, branchName) {
   ensureCleanWorktree(rootDir, branchName);
 
@@ -175,32 +186,40 @@ function buildBlockerComment(reason) {
 }
 
 function buildImplementationComment(result) {
-  const lines = [
+  const lines = [];
+
+  if (result.marker) {
+    lines.push(result.marker);
+  }
+
+  lines.push(
     "## Implementation Result",
     "",
     `State: ${result.state}`,
     result.branch ? `Branch: \`${result.branch}\`` : null,
-    result.command ? `Command: \`${result.command}\`` : "Command: not configured",
+    result.command ? `Command: \`${result.command}\`` : null,
     "",
-  ].filter(Boolean);
+  );
+
+  const filtered = lines.filter(Boolean);
 
   if (result.summary) {
-    lines.push(result.summary, "");
+    filtered.push(result.summary, "");
   }
 
   if (result.commitSha) {
-    lines.push(`Commit: \`${result.commitSha}\``, "");
+    filtered.push(`Commit: \`${result.commitSha}\``, "");
   }
 
   if (result.changedFiles && result.changedFiles.length) {
-    lines.push("### Changed Files", ...result.changedFiles.map((file) => `- \`${file}\``), "");
+    filtered.push("### Changed Files", ...result.changedFiles.map((file) => `- \`${file}\``), "");
   }
 
   if (result.detail) {
-    lines.push("### Detail", result.detail, "");
+    filtered.push("### Detail", result.detail, "");
   }
 
-  return lines.join("\n").trim();
+  return filtered.join("\n").trim();
 }
 
 function buildDoneComment(pullRequest) {
@@ -364,36 +383,54 @@ function evaluateImplementationScope(issue, changedFiles, config = {}) {
   const labels = (issue.labels || []).map((label) =>
     typeof label === "string" ? label : label.name
   );
-  const constrainedEntries = labels.flatMap((label) =>
-    Array.isArray(labelConstraints[label]) ? labelConstraints[label] : []
-  );
-  const effectiveScope = [...new Set([...scopeEntries, ...constrainedEntries])];
+  const activeConstraints = labels
+    .map((label) => ({ label, entries: labelConstraints[label] }))
+    .filter((constraint) => Array.isArray(constraint.entries) && constraint.entries.length);
 
-  if (!effectiveScope.length) {
+  if (!scopeEntries.length) {
     return {
       ok: false,
       findings: [
         "The issue must declare concrete `Target Files` entries before bounded implementation can be considered complete.",
       ],
-      scopeEntries: effectiveScope,
+      scopeEntries,
       outOfScopeFiles: changedFiles || [],
     };
   }
 
-  const outOfScopeFiles = (changedFiles || []).filter(
-    (filePath) => !effectiveScope.some((entry) => isPathWithinScope(filePath, entry))
+  const outOfDeclaredScopeFiles = (changedFiles || []).filter(
+    (filePath) => !scopeEntries.some((entry) => isPathWithinScope(filePath, entry))
   );
 
+  if (outOfDeclaredScopeFiles.length) {
+    return {
+      ok: false,
+      findings: [
+        `Implementation changed files outside declared scope: ${outOfDeclaredScopeFiles.join(", ")}.`,
+      ],
+      scopeEntries,
+      outOfScopeFiles: outOfDeclaredScopeFiles,
+    };
+  }
+
+  const constraintViolations = activeConstraints.flatMap((constraint) => {
+    const disallowedFiles = (changedFiles || []).filter(
+      (filePath) =>
+        !constraint.entries.some((entry) => isPathWithinScope(filePath, entry))
+    );
+
+    return disallowedFiles.length
+      ? [
+          `Label \`${constraint.label}\` narrows scope to: ${constraint.entries.join(", ")}. Disallowed files: ${disallowedFiles.join(", ")}.`,
+        ]
+      : [];
+  });
+
   return {
-    ok: outOfScopeFiles.length === 0,
-    findings:
-      outOfScopeFiles.length === 0
-        ? []
-        : [
-            `Implementation changed files outside declared scope: ${outOfScopeFiles.join(", ")}.`,
-          ],
-    scopeEntries: effectiveScope,
-    outOfScopeFiles,
+    ok: constraintViolations.length === 0,
+    findings: constraintViolations,
+    scopeEntries,
+    outOfScopeFiles: [],
   };
 }
 
@@ -427,6 +464,7 @@ module.exports = {
   buildVerificationSectionContent,
   createOrSwitchBranch,
   commitAllChanges,
+  ensureNoPreexistingDirtyStateOnBranch,
   evaluateImplementationScope,
   getCurrentBranchName,
   getChangedFilesSince,

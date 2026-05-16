@@ -280,12 +280,12 @@ function generateOverlay(config, rootDir) {
   ensureDirectory(path.join(rootDir, ".agentic", "issues", "drafts"));
 
   if (config.seedIssue) {
-    writeManagedFile(
+    updateManagedFile(
       path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-combined.md"),
       combinedSeedIssue,
       summary
     );
-    writeManagedFile(
+    updateManagedFile(
       path.join(rootDir, ".agentic", "issues", "drafts", "pilot-web-app-split.md"),
       splitSeedIssue,
       summary
