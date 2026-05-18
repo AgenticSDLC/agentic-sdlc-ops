@@ -172,7 +172,25 @@ Current scope includes:
 
 ## Start Here
 
-- Understand the lifecycle:[public/LIFECYCLE.md](public/LIFECYCLE.md)
+- Understand the lifecycle: [public/LIFECYCLE.md](public/LIFECYCLE.md)
 - Setup flow: [docs/getting-started-web-app.md](docs/getting-started-web-app.md)
 - Product direction: [docs/vision.md](docs/vision.md)
 - Design intent: [docs/design-principles.md](docs/design-principles.md)
+- Guidebook: [agenticsdlc.github.io/agentic-sdlc-ops](https://agenticsdlc.github.io/agentic-sdlc-ops/)
+
+## Contributing
+
+This project is open to contributions. The best ways to help right now:
+
+1. **Try it** — run the getting-started guide on your own repo and report what breaks
+2. **File issues** — bugs, friction, unclear docs, missing features
+3. **Write about it** — blog posts, tweets, videos showing your experience
+
+For code contributions:
+
+- Fork the repo and create a branch from `main`
+- Keep changes focused and scoped (one concern per PR)
+- Run `node cli/index.js --help` to confirm the CLI still loads
+- Open a PR with a clear description of what and why
+
+No CLA. MIT licensed. Ship it.
