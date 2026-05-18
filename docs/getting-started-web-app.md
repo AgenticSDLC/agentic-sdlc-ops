@@ -1,161 +1,172 @@
-# Getting Started: Web App Overlay
+# Getting Started: Web App
 
-Use this page for the shortest path from a fresh web app repo to the first issue-driven PR.
+The shortest path from a fresh web app repo to a merged PR — driven entirely by a GitHub issue spec.
 
-Scope: this guide is for combined topology, specifically - one agentic runtime path for planning, building, and verification.
+## Prerequisites
 
-NOTE: For split topology, with "independent" agents (planner/builder/verifier), use the dedicated split guide instead of this combined topology page.
+- Node.js 18+
+- GitHub CLI (`gh`) authenticated
+- An OpenAI or Anthropic API key
+- A Next.js (or React Vite / Remix) repo with a GitHub remote
 
-For detailed lifecycle and architecture explanation, see [public/LIFECYCLE.md](../public/LIFECYCLE.md).
+## Setup
 
-## 🚀 Quickstart: Combined Topology - Issue To PR Merge Lifecycle Automation 🤖
+### 1. Export your agent API key
 
-This document uses GitHub as the target repo. GitLab will be supported in the future. If the target repository does not have a GitHub origin remote and `gh` access, stop here and wire GitHub first.
-
-1. Set up your agent API key.
-
-The runtime uses an LLM to implement code changes. Export your API key before proceeding:
+The runtime uses an LLM to implement code. Export one or both:
 
 ```sh
 export OPENAI_API_KEY=<your-key>
+export ANTHROPIC_API_KEY=<your-key>
 ```
 
-This is the only credential the runtime needs beyond GitHub CLI access.
+If both are set, `init` will ask you to choose. If one is set, it auto-selects.
 
-2. Create or open a scaffolded web app repo with GitHub remote.
+### 2. Install the CLI
 
 ```sh
-cd ~[YOURWORKSPACE]/yourFolder
-npx create-next-app@latest your-app-name
-cd your-app-name
-gh repo create your-app-name --public --source=. --remote=origin --push
+npx agentic-sdlc --help
 ```
 
-`create-next-app` automatically initializes git and commits the scaffold. No manual `git init` or `git add` needed.
-
-3. Link the CLI locally (one time).
+Or install globally:
 
 ```sh
-cd ~[YOURWORKSPACE]/agentic-sdlc-ops
-pnpm link --global
-agentic-sdlc --help
+npm install -g agentic-sdlc
 ```
 
-4. Initialize the overlay in the target repo.
+### 3. Create or open a web app repo
+
+If starting fresh:
 
 ```sh
-cd ~[YOURWORKSPACE]/yourFolder/your-app-name
-agentic-sdlc init
+npx create-next-app@latest my-app
+cd my-app
+gh repo create my-app --public --source=. --remote=origin --push
 ```
 
-`init` will detect your API key and confirm the agent backend. It also offers to install Playwright for browser validation.
+If using an existing repo, just `cd` into it. It needs `lint` and `build` scripts in `package.json`.
 
-5. Run doctor.
+### 4. Initialize the overlay
+
+```sh
+agentic-sdlc init --yes
+```
+
+This installs the lifecycle scaffolding:
+- Agent contracts and project adapter (markdown)
+- Issue and PR templates
+- Lifecycle labels on GitHub
+- Playwright for browser validation
+- Starter e2e test
+
+Commit and push:
+
+```sh
+git add -A && git commit -m "docs: apply agentic-sdlc overlay" && git push
+```
+
+### 5. Run doctor (optional)
 
 ```sh
 agentic-sdlc doctor
 ```
 
-Doctor checks overlay health, confirms your agent API key is available, and reports any warnings. Warnings are not blockers — continue to the next step.
+Confirms overlay health and agent API key availability. Warnings are not blockers.
 
-6. Preview Github Issue -> publish --dry-run.
+## Run It
 
-```sh
-agentic-sdlc issue publish --spec pilot-web-app-combined --dry-run
-```
-
-- explicit path also works -> .agentic/issues/drafts:
-
-```sh
-agentic-sdlc issue publish --spec .agentic/issues/drafts/pilot-web-app-combined.md --dry-run
-```
-
-7. Publish the issue (live - no dry-run).
+### 6. Publish a spec
 
 ```sh
 agentic-sdlc issue publish --spec pilot-web-app-combined
 ```
 
-NOTE: You'll get an issue number in the output. This is important for the next step. If you miss it, you can find the issue in your GitHub Issues list for the repository, or run:
+This creates a GitHub issue from the starter spec with lifecycle labels applied. Note the issue number in the output.
 
-```sh
-agentic-sdlc issue list
-```
-
-to see recent issues (if your CLI version supports it).
-
-8. 🚀 Run the runtime.
+### 7. Run the runtime
 
 ```sh
 agentic-sdlc runtime combined --issue <issue-number>
 ```
 
-This is the "run it and forget it" step. One command does everything:
+One command. Walk away. Come back to a merged PR and closed issue.
 
-- ⛩️ validates the issue is ready (required sections filled in, no hold labels, topology label present)
-- transitions the issue from `ready-for-build` to `in-progress`
-- publishes a visible plan as a comment on the issue
-- creates the issue branch and opens a draft PR
-- 🤖 invokes the configured agent backend to implement the code changes
-- runs lint, build, and browser validation
-- advances the issue to `in-review`
+What happens:
 
-When it finishes, you'll have a PR with code changes, passing verification, and the issue in `in-review`.
+1. ⛩️ **ready-for-build** — validates the issue spec, transitions to in-progress
+2. 🤖 **in-progress** — creates branch, invokes the agent, implements the code, pushes
+3. 🧪 **in-review** — runs lint + build + Playwright, creates PR, merges
+4. 🏁 **done** — closes the issue
 
-🚏 If any step fails, the runtime stops, publishes the reason on the issue, and tells you what to fix. Rerun the same command after fixing.
+If any step fails, the runtime stops, posts the reason on the issue, and tells you what to fix. Rerun the same command after fixing.
 
-For a detailed walkthrough of the output, see [preflight-deep-dive.md](preflight-deep-dive.md).
+### That's it.
 
-9. Merge and finalize.
+Two commands: `issue publish` and `runtime combined`. Spec to merged PR.
 
-After reviewing the PR and merging it on GitHub:
+## Auto-Merge Behavior
 
-```sh
-agentic-sdlc runtime combined --issue <issue-number> --finalize
-```
-
-This advances the issue to `done` and closes it. The lifecycle is complete.
+By default, the runtime auto-merges the PR after verification passes. To require manual review instead, add the `merge:human-required` label to the issue before running the runtime.
 
 ## Recovery
 
 If the runtime fails partway through:
 
-- **Implementation failed** — fix the issue contract or agent config, rerun step 8
-- **Verification failed** — fix the code on the branch, then: `agentic-sdlc runtime combined --issue <issue-number> --verify`
-- **Finalize blocked** — merge the PR first, then rerun with `--finalize`
+- **Rerun the same command** — it detects completed phases and resumes where it left off
+- **Verification failed** — fix the code on the branch, then: `agentic-sdlc runtime combined --issue <n> --verify`
+- **Finalize blocked** — merge the PR manually, then: `agentic-sdlc runtime combined --issue <n> --finalize`
 
-## Validation Mode: Keep It Simple
+## Writing Your Own Specs
 
-Validation mode controls what proof is required before merge.
+Create a markdown file in `.agentic/issues/drafts/` with this structure:
 
-| Mode               | What It Checks                                                          | When To Use It                                           | Merge Expectation                            |
-| ------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------- |
-| `local-only`       | local lint, local build, browser validation command (for web-app)       | initial bootstrap, early repo bring-up                   | local proof only                             |
-| `preview-required` | everything in `local-only` plus hosted preview validation by a human    | team can deploy preview environments per PR              | preview must be validated before merge       |
-| `production-gated` | everything in `preview-required` plus explicit production approval gate | mature repos with release controls and change management | merge/deploy requires approval gate evidence |
+```markdown
+# [TASK] Your task title
 
-Example mindset for `preview-required`:
+## Context
+Why this change is needed.
 
-- PR opens and your platform posts a preview URL (for example, Vercel preview deployment).
-- A human reviewer opens the preview URL and checks the acceptance criteria in a real browser.
-- Reviewer records that validation in the PR (comment/checklist/approval based on team policy).
-- Only then is the PR treated as merge-ready.
+## Requirements
+- what to do
+- constraints
 
-Recommended default for a new repo: start at `local-only`, then move to `preview-required` as soon as preview deployments and human QA are reliable.
+## Acceptance Criteria
+- observable outcomes
+- what tests should verify
 
-Where this is configured: `.agentic/project-adapter.md`.
+## Target Files
+- `path/to/file.tsx`
+- `tests/relevant.spec.ts`
+```
+
+Then publish and run:
+
+```sh
+agentic-sdlc issue publish --spec your-spec-name
+agentic-sdlc runtime combined --issue <n>
+```
+
+## What The Overlay Installs
+
+The overlay is almost entirely markdown. No build plugins, no runtime dependencies.
+
+| What | Type |
+|------|------|
+| `AGENTS.md` | Agent execution contract |
+| `.agentic/project-adapter.md` | Repository config |
+| `.agentic/issues/drafts/*.md` | Starter specs |
+| `.github/ISSUE_TEMPLATE/` | Issue template |
+| `.github/pull_request_template.md` | PR template |
+| `docs/*.md` | Reference docs |
+| `scripts/validate-*.js` | CI validators (ESM) |
+| `playwright.config.ts` | Browser validation config |
+| `tests/homepage.spec.ts` | Starter e2e test |
+
+To remove: `git revert <commit>` — one commit undoes everything.
 
 ## Where To Read More
 
-- Lifecycle flow and terminology: [public/LIFECYCLE.md](../public/LIFECYCLE.md)
-- Product direction: [docs/vision.md](vision.md)
-- Design intent: [docs/design-principles.md](design-principles.md)
-- Workflow mapping reference: [adoption/workflow-mapping.md](../adoption/workflow-mapping.md)
-- Runtime output explained: [preflight-deep-dive.md](preflight-deep-dive.md)
-
-## Remove Global Link (Optional)
-
-```sh
-cd ~[YOURWORKSPACE]/agentic-sdlc-ops
-pnpm unlink --global agentic-sdlc-ops
-```
+- [Preflight deep dive](preflight-deep-dive.md) — detailed runtime output walkthrough
+- [Lifecycle](../public/LIFECYCLE.md) — flow and terminology
+- [Design principles](design-principles.md) — architectural intent
+- [Guidebook](https://agenticsdlc.github.io/agentic-sdlc-ops/) — values and principles
