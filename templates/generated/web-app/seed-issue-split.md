@@ -22,7 +22,9 @@ This pilot issue validates the split-topology agentic SDLC overlay for {{reposit
 
 ## Target Files
 
-- `app/page.tsx` or `src/app/page.tsx`
+- `app/page.tsx`
+- `src/app/page.tsx`
+- `tests/homepage.spec.ts`
 
 ## Notes
 

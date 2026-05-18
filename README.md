@@ -79,6 +79,27 @@ Bring your own:
 
 If those repository-owned parts are missing, the CLI should report gaps clearly instead of masking them.
 
+## What The Overlay Installs
+
+The overlay is almost entirely markdown. No build plugins, no runtime dependencies, no lock on your stack.
+
+| What | Type | Purpose |
+|------|------|--------|
+| `AGENTS.md` | Markdown | Agent execution contract |
+| `.agentic/project-adapter.md` | Markdown | Repository-specific config |
+| `.agentic/issues/drafts/*.md` | Markdown | Starter spec templates |
+| `.github/ISSUE_TEMPLATE/agentic-task.md` | Markdown | Issue template |
+| `.github/pull_request_template.md` | Markdown | PR template |
+| `docs/*.md` | Markdown | Reference docs (task classes, labels, workflows) |
+| `scripts/validate-*.js` | ESM scripts | Optional CI validators (3 files) |
+| `.github/workflows/*.yml` | YAML | Optional CI workflow examples |
+| `playwright.config.ts` | Config | Browser validation (if installed) |
+| `tests/homepage.spec.ts` | Test | Starter e2e test (if Playwright installed) |
+
+No compiled code. No background processes. No telemetry.
+
+To remove: delete the files or revert the commit. `git revert <commit>` undoes everything cleanly.
+
 ## Usage Pattern
 
 1. Initialize the lifecycle scaffolding in a target repository.

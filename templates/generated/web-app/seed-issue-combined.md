@@ -22,6 +22,7 @@ This pilot issue validates the combined-topology agentic SDLC overlay for {{repo
 
 - `app/page.tsx`
 - `src/app/page.tsx`
+- `tests/homepage.spec.ts`
 
 ## Notes
 

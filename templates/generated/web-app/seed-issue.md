@@ -19,7 +19,9 @@ This pilot issue validates the agentic SDLC overlay for {{repository_name}} usin
 
 ## Target Files
 
-- `app/page.tsx` or `src/app/page.tsx`
+- `app/page.tsx`
+- `src/app/page.tsx`
+- `tests/homepage.spec.ts`
 
 ## Notes
 
