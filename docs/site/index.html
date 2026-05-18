@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic SDLC Guidebook</title>
+  <meta name="description" content="Six values and six principles for safe, visible, and scalable agent-driven software delivery.">
+  <meta property="og:title" content="Agentic SDLC Guidebook">
+  <meta property="og:description" content="A lifecycle framework for agent-driven software delivery. Spec-driven development through GitHub Issues.">
+  <meta property="og:type" content="website">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --border: #30363d;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 2rem 1.5rem;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 1.1rem;
+      margin-bottom: 3rem;
+    }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      color: var(--accent);
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .values-list, .principles-list {
+      list-style: none;
+      margin-bottom: 2rem;
+    }
+    .values-list li, .principles-list li {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .values-list li:last-child, .principles-list li:last-child {
+      border-bottom: none;
+    }
+    strong {
+      color: var(--text);
+    }
+    .over {
+      color: var(--muted);
+    }
+    .rationale p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .cta {
+      margin-top: 4rem;
+      padding: 2rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+    }
+    .cta h2 {
+      margin-top: 0;
+    }
+    .cta a {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.75rem 2rem;
+      background: var(--accent);
+      color: var(--bg);
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .cta a:hover {
+      opacity: 0.9;
+    }
+    .scope {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+    @media (max-width: 600px) {
+      h1 { font-size: 1.8rem; }
+      body { padding: 1.5rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Agentic SDLC Guidebook</h1>
+  <p class="subtitle">Six values and six principles for safe, visible, and scalable agent-driven software delivery.</p>
+
+  <p>A new era of software delivery is here. Coding agents can generate code, modify systems, and execute workflows at unprecedented speed. However, speed without structure leads to operational chaos.</p>
+  <p>A clear lifecycle framework is essential for safe, understandable, and scalable agent-driven software delivery.</p>
+
+  <h2>Values</h2>
+  <ul class="values-list">
+    <li><strong>Visibility</strong> <span class="over">over hidden autonomy</span></li>
+    <li><strong>Governability</strong> <span class="over">over maximum automation</span></li>
+    <li><strong>Plans</strong> <span class="over">over ad-hoc execution</span></li>
+    <li><strong>Verification</strong> <span class="over">over code generation</span></li>
+    <li><strong>Repository ownership</strong> <span class="over">over centralized control</span></li>
+    <li><strong>Lifecycle clarity</strong> <span class="over">over delivery speed</span></li>
+  </ul>
+
+  <h2>Principles</h2>
+  <ol class="principles-list">
+    <li>All execution state, plans, and outcomes must be <strong>observable</strong>.</li>
+    <li>Humans must be able to <strong>steer, interrupt, or override</strong> agent execution at any point.</li>
+    <li>The repository is the <strong>source of truth</strong> for how work is executed and verified.</li>
+    <li>Execution begins from <strong>visible, documented intent</strong> — not implicit assumptions.</li>
+    <li>Work is complete when <strong>repository-defined verification succeeds</strong>, not when code is generated.</li>
+    <li><strong>Lifecycle governance</strong> precedes automation.</li>
+  </ol>
+
+  <h2>Rationale</h2>
+  <div class="rationale">
+    <h3>1. Work Must Be Visible</h3>
+    <p>Hidden autonomous execution increases risk. Visible execution builds confidence. Plans, execution state, validation results, and lifecycle progress should remain observable in public repository context.</p>
+
+    <h3>2. Humans Must Remain In Control</h3>
+    <p>Coding agents accelerate delivery — they do not replace human accountability. Humans must be able to steer execution, interrupt execution, review decisions, redefine constraints, and approve outcomes.</p>
+
+    <h3>3. Repositories Own Their Rules</h3>
+    <p>Every repository has unique architecture, commands, validation requirements, workflows, and release expectations. The lifecycle framework adapts to the repository, not the other way around.</p>
+
+    <h3>4. Plans Precede Execution</h3>
+    <p>Agent-driven work should start with documented goals, defined scope, lifecycle expectations, validation requirements, and explicit tasks. Planning reduces ambiguity and improves trust.</p>
+
+    <h3>5. Verification Is Part Of Delivery</h3>
+    <p>Validation should be explicit, repeatable, and observable. Generated code that has not passed repository-defined checks is not complete work.</p>
+
+    <h3>6. Lifecycle Before Automation</h3>
+    <p>Faster execution without lifecycle governance creates disorder. The goal is reliable, understandable, and scalable delivery — not maximum throughput.</p>
+  </div>
+
+  <div class="cta">
+    <h2>Try It</h2>
+    <p>Spec-driven development through GitHub Issues.<br>Written spec to merged PR in under 60 seconds.</p>
+    <a href="https://github.com/AgenticSDLC/agentic-sdlc-ops">Get Started →</a>
+  </div>
+
+  <p class="scope">This guidebook defines principles for agent-driven software delivery. It does not prescribe specific tools, hosting setups, deployment infrastructure, or delivery platforms. These principles are designed to be implemented by any tool, framework, or operational system in its own way.</p>
+
+</body>
+</html>
