@@ -53,6 +53,7 @@ agentic-sdlc init --yes
 ```
 
 This installs the lifecycle scaffolding:
+
 - Agent contracts and project adapter (markdown)
 - Issue and PR templates
 - Lifecycle labels on GitHub
@@ -124,17 +125,21 @@ Create a markdown file in `.agentic/issues/drafts/` with this structure:
 # [TASK] Your task title
 
 ## Context
+
 Why this change is needed.
 
 ## Requirements
+
 - what to do
 - constraints
 
 ## Acceptance Criteria
+
 - observable outcomes
 - what tests should verify
 
 ## Target Files
+
 - `path/to/file.tsx`
 - `tests/relevant.spec.ts`
 ```
@@ -150,17 +155,17 @@ agentic-sdlc runtime combined --issue <n>
 
 The overlay is almost entirely markdown. No build plugins, no runtime dependencies.
 
-| What | Type |
-|------|------|
-| `AGENTS.md` | Agent execution contract |
-| `.agentic/project-adapter.md` | Repository config |
-| `.agentic/issues/drafts/*.md` | Starter specs |
-| `.github/ISSUE_TEMPLATE/` | Issue template |
-| `.github/pull_request_template.md` | PR template |
-| `docs/*.md` | Reference docs |
-| `scripts/validate-*.js` | CI validators (ESM) |
-| `playwright.config.ts` | Browser validation config |
-| `tests/homepage.spec.ts` | Starter e2e test |
+| What                               | Type                      |
+| ---------------------------------- | ------------------------- |
+| `AGENTS.md`                        | Agent execution contract  |
+| `.agentic/project-adapter.md`      | Repository config         |
+| `.agentic/issues/drafts/*.md`      | Starter specs             |
+| `.github/ISSUE_TEMPLATE/`          | Issue template            |
+| `.github/pull_request_template.md` | PR template               |
+| `docs/*.md`                        | Reference docs            |
+| `scripts/validate-*.js`            | CI validators (ESM)       |
+| `playwright.config.ts`             | Browser validation config |
+| `tests/homepage.spec.ts`           | Starter e2e test          |
 
 To remove: `git revert <commit>` — one commit undoes everything.
 
@@ -169,4 +174,5 @@ To remove: `git revert <commit>` — one commit undoes everything.
 - [Preflight deep dive](preflight-deep-dive.md) — detailed runtime output walkthrough
 - [Lifecycle](../public/LIFECYCLE.md) — flow and terminology
 - [Design principles](design-principles.md) — architectural intent
+- [Convention promotion checklist](convention-promotion-checklist.md) — keep new conventions aligned across product/public/internal repos
 - [Guidebook](https://agenticsdlc.github.io/agentic-sdlc-ops/) — values and principles

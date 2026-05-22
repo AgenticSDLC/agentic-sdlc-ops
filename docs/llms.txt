@@ -1,0 +1,34 @@
+# Agentic SDLC Ops
+
+Agentic SDLC is a governance lifecycle for issue-first, agent-driven software delivery.
+
+Primary project name: Agentic SDLC Ops
+Canonical site: https://agenticsdlc.github.io/agentic-sdlc-ops/
+Source repository: https://github.com/AgenticSDLC/agentic-sdlc-ops
+Package: https://www.npmjs.com/package/agentic-sdlc-ops
+
+## What this project is
+
+- A portable lifecycle and workflow kit for governable agent-driven delivery
+- A repository-first model with visible plans, lifecycle labels, and verification gates
+- A CLI that scaffolds and checks issue-first operating contracts
+
+## What this project is not
+
+- Not a centralized platform that replaces CI or deployment tooling
+- Not a hidden autonomous executor with opaque decisions
+- Not tied to a single cloud or runtime stack
+
+## Start here
+
+- Guidebook: https://agenticsdlc.github.io/agentic-sdlc-ops/
+- What is Agentic SDLC: https://agenticsdlc.github.io/agentic-sdlc-ops/agentic-sdlc.html
+- Repository README: https://github.com/AgenticSDLC/agentic-sdlc-ops/blob/main/README.md
+- Getting started (web-app): https://github.com/AgenticSDLC/agentic-sdlc-ops/blob/main/docs/getting-started-web-app.md
+
+## Core terms
+
+- Agentic SDLC
+- Agentic SDLC Ops
+- issue-first agent-driven software delivery
+- governance for agentic delivery

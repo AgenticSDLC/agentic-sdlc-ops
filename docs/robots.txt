@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://agenticsdlc.github.io/agentic-sdlc-ops/sitemap.xml
