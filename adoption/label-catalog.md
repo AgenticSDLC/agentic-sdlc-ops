@@ -54,6 +54,15 @@ Examples:
 - `frontend`
 - `backend`
 
+## Merge Policy Labels
+
+These labels declare merge behavior for the PR associated with an issue. They do not pause execution — work proceeds through implementation and verification. They gate only the final merge step.
+
+- `merge:human-required`
+  - automation may not merge; a human must review and approve the PR before merge
+  - set at issue creation time or before verifier completes
+  - suppresses any auto-merge automation that would otherwise fire after verification passes
+
 ## Guidance
 
 - keep lifecycle labels stable and few in number
