@@ -1,0 +1,141 @@
+# Playwright Smoke with Inline PR Screenshots
+#
+# This workflow runs Playwright e2e tests on pull requests and posts
+# route screenshots directly on the PR as visual evidence.
+#
+# Why: Agents performing UI work cannot visually verify their changes.
+# Inline screenshots give humans and verifiers immediate feedback
+# without downloading artifacts or waiting for a merge.
+#
+# Requirements:
+# - Playwright installed in the project
+# - A screenshot capture test file (see tests/screenshots/capture-routes.spec.ts)
+# - A separate playwright config for screenshots (playwright-screenshots.config.ts)
+# - pull-requests: write permission for PR comments
+#
+# Customize:
+# - Add routes to the screenshot capture test
+# - Adjust viewports for your target devices
+# - Add authenticated routes using your e2e login helper
+
+name: Playwright Smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  playwright-smoke:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      E2E_TEST_MODE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Adapt: replace with your package manager setup
+      - name: Install dependencies
+        run: npm ci
+
+      # Adapt: replace with your database setup if needed
+      - name: Setup database
+        run: echo "Add your DB setup here (prisma db push, migrations, etc.)"
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run Playwright tests
+        run: npx playwright test
+
+      - name: Capture route screenshots
+        if: always()
+        run: |
+          mkdir -p ci-screenshots
+          npx playwright test --config playwright-screenshots.config.ts || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: |
+            playwright-report
+            test-results
+            ci-screenshots
+          if-no-files-found: ignore
+
+      - name: "Post screenshot evidence on PR"
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAYWRIGHT_JOB_STATUS: ${{ job.status }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const marker = "<!-- playwright-smoke-evidence -->";
+            const status = process.env.PLAYWRIGHT_JOB_STATUS ?? "unknown";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const screenshotDir = 'ci-screenshots';
+            let screenshotSection = '';
+
+            if (fs.existsSync(screenshotDir)) {
+              const files = fs.readdirSync(screenshotDir).filter(f => f.endsWith('.png')).sort();
+              if (files.length > 0) {
+                screenshotSection = '\n### Route Screenshots\n\n';
+                for (const file of files) {
+                  const label = file.replace('.png', '').replace(/-/g, ' ');
+                  const filePath = path.join(screenshotDir, file);
+                  const base64 = fs.readFileSync(filePath, 'base64');
+                  screenshotSection += `<details><summary>${label}</summary>\n\n![${label}](data:image/png;base64,${base64})\n\n</details>\n\n`;
+                }
+              }
+            }
+
+            const body = `${marker}
+            ## Playwright Smoke Evidence
+
+            Status: **${status}**
+            ${screenshotSection}
+            **Links:**
+            - [Workflow run](${runUrl})
+
+            _Updated automatically by the Playwright smoke workflow._`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) =>
+              comment.body?.includes(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
