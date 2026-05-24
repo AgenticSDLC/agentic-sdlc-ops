@@ -54,6 +54,22 @@ Examples:
 - screenshots or trace artifacts
 - preview deployment evidence
 
+### CI Gate For Verifier
+
+When a repository uses an autonomous verifier role, the verifier must not pass until repository-defined CI checks have completed successfully.
+
+The recommended pattern:
+
+- CI workflows post a named commit status (e.g. `ci/playwright-smoke`) on the PR head SHA
+- The verifier reads the commit status API and requires the named status to be present and green
+- If the status is missing (CI hasn't completed), the verifier fails without posting a blocker marker and will be re-dispatched when CI completes
+- If the status is `failure`, the verifier posts a blocker
+- If the status is `success`, the verifier may proceed to evaluate pass conditions
+
+This prevents auto-merge before CI validates the PR. Without this gate, the verifier may pass based on stale or absent check results.
+
+The commit status context name is repository-specific and should be documented in the project adapter.
+
 ### Completion
 
 Defines the repository-specific bar for `done`.
