@@ -1,18 +1,250 @@
-name: Issue Readiness Validator Example
+name: Issue Readiness Validator
 
 on:
   issues:
-    types: [labeled, edited]
+    types:
+      - labeled
+      - edited
+
+permissions:
+  issues: write
+  contents: read
 
 jobs:
-  validate:
-    if: github.event.label.name == 'ready-for-build'
+  validate-ready-for-build:
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'ready-for-build') ||
+      (github.event.action == 'edited' && contains(github.event.issue.labels.*.name, 'ready-for-build'))
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Validate issue readiness
+        uses: actions/github-script@v7
+        env:
+          # WORKFLOW_TOKEN is a PAT with `repo` and `workflow` scopes.
+          # It is required for the auto-transition step: events triggered by
+          # GITHUB_TOKEN do not fire other workflow runs, so the
+          # `issues: labeled` event that moves the issue to `in-progress`
+          # would not reach any downstream workflow unless a PAT is used.
+          # If WORKFLOW_TOKEN is not set, the transition still happens but
+          # downstream workflows will not be triggered automatically.
+          WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = issue.number;
+            const body = issue.body || "";
 
-      - name: Validate issue structure
-        run: |
-          echo "Example workflow only"
-          echo "Implement repository-specific checks for required issue sections and labels."
+            const requiredSections = [
+              { name: 'Context', patterns: [/^##\s+Context\b/im, /^#\s+Context\b/im] },
+              { name: 'Requirements', patterns: [/^##\s+Requirements\b/im, /^#\s+Requirements\b/im] },
+              { name: 'Acceptance Criteria', patterns: [/^##\s+Acceptance Criteria\b/im, /^#\s+Acceptance Criteria\b/im] },
+              { name: 'Target Files', patterns: [/^##\s+Target Files\b/im, /^#\s+Target Files\b/im] }
+            ];
+
+            const holdLabels = ['hold', 'needs-human'];
+            const topologyLabels = ['topology:combined', 'topology:split'];
+
+            function hasMeaningfulSectionContent(value) {
+              const text = String(value || '')
+                .replace(/^\s*[-*]\s+/gm, '')
+                .replace(/`/g, '')
+                .trim();
+
+              if (!text) {
+                return false;
+              }
+
+              // Reject unfilled template placeholder text
+              const placeholderPatterns = [
+                /^describe\b/i,
+                /^list\b/i,
+                /^optional\b/i,
+                /^requirement\s+\d+\b/i,
+                /^acceptance criterion\s+\d+\b/i,
+                /^path\/or\/subsystem-\d+\b/i,
+              ];
+
+              return !placeholderPatterns.some((pattern) => pattern.test(text));
+            }
+
+            function extractSectionBody(markdown, patterns) {
+              const lines = String(markdown || '').split('\n');
+              const headingIndex = lines.findIndex((line) => patterns.some((pattern) => pattern.test(line)));
+
+              if (headingIndex === -1) {
+                return '';
+              }
+
+              const content = [];
+              for (let i = headingIndex + 1; i < lines.length; i += 1) {
+                if (/^#{1,6}\s+/.test(lines[i])) {
+                  break;
+                }
+                content.push(lines[i]);
+              }
+
+              return content.join('\n').trim();
+            }
+
+            const missingSections = requiredSections
+              .filter(section => !section.patterns.some((pattern) => pattern.test(body)))
+              .map(section => section.name);
+
+            const emptySections = requiredSections
+              .filter((section) => {
+                if (missingSections.includes(section.name)) {
+                  return false;
+                }
+                const sectionBody = extractSectionBody(body, section.patterns);
+                return !hasMeaningfulSectionContent(sectionBody);
+              })
+              .map((section) => section.name);
+
+            const hasAssignee = Array.isArray(issue.assignees) && issue.assignees.length > 0;
+            const labels = (issue.labels || []).map(label => typeof label === 'string' ? label : label.name);
+            const hasAgentLabel = labels.some((label) => /^agent-/.test(label || ""));
+            const presentHoldLabels = holdLabels.filter((label) => labels.includes(label));
+            const hasTopologyLabel = topologyLabels.some((label) => labels.includes(label));
+
+            const problems = [];
+
+            if (missingSections.length > 0) {
+              problems.push(`Missing required section(s): ${missingSections.join(', ')}`);
+            }
+
+            if (emptySections.length > 0) {
+              problems.push(`Section(s) are present but empty or placeholder-only: ${emptySections.join(', ')}`);
+            }
+
+            if (!hasAssignee && !hasAgentLabel) {
+              problems.push('Issue must have either an assignee or an `agent-*` label before it can be ready for build.');
+            }
+
+            if (!hasTopologyLabel) {
+              problems.push('Issue must include a topology label (`topology:combined` or `topology:split`) before it can be ready for build.');
+            }
+
+            if (presentHoldLabels.length > 0) {
+              problems.push(`Blocking hold label(s) present: ${presentHoldLabels.join(', ')}`);
+            }
+
+            const validationCommentTag = '<!-- issue-readiness-validator -->';
+
+            const existingComments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+
+            const existingValidationComment = existingComments.find(comment =>
+              typeof comment.body === 'string' && comment.body.includes(validationCommentTag)
+            );
+
+            if (problems.length > 0) {
+              const commentBody = `${validationCommentTag}\n## Issue Readiness Check: Failed\n\nThis issue cannot remain labeled \`ready-for-build\` yet.\n\n### Problems\n${problems.map(problem => `- ${problem}`).join('\n')}\n\n### Required before build\n- Context\n- Requirements\n- Acceptance Criteria\n- Target Files\n- Meaningful content in required sections\n- Assignee or \`agent-*\` label\n- Topology label (\`topology:combined\` or \`topology:split\`)\n- No blocking hold labels (\`hold\`, \`needs-human\`)\n\nThe workflow removed the \`ready-for-build\` label so the issue stays in refinement until it is executable.`;
+
+              if (existingValidationComment) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existingValidationComment.id,
+                  body: commentBody
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body: commentBody
+                });
+              }
+
+              if (labels.includes('ready-for-build')) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number,
+                  name: 'ready-for-build'
+                });
+              }
+
+              const needsDetails = 'needs-details';
+              if (!labels.includes(needsDetails)) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number,
+                  labels: [needsDetails]
+                });
+              }
+
+              core.setFailed('Issue readiness validation failed.');
+              return;
+            }
+
+            const successBody = `${validationCommentTag}\n## Issue Readiness Check: Passed\n\nThis issue contains the required execution details and may proceed in the workflow.\n\n### Verified\n- Context\n- Requirements\n- Acceptance Criteria\n- Target Files\n- Assignee or \`agent-*\` label`;
+            const topologyUsed = topologyLabels.find((label) => labels.includes(label));
+            const enrichedSuccessBody = `${successBody}\n- Topology label present (${topologyUsed})\n- No blocking hold labels`;
+
+            if (existingValidationComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existingValidationComment.id,
+                body: enrichedSuccessBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: enrichedSuccessBody
+              });
+            }
+
+            if (labels.includes('needs-details')) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number,
+                name: 'needs-details'
+              }).catch(() => {});
+            }
+
+            // Auto-transition: readiness passed — move issue to in-progress.
+            // Uses WORKFLOW_TOKEN (PAT) if set, because events fired by
+            // GITHUB_TOKEN do not trigger other workflow runs on GitHub.
+            const workflowToken = process.env.WORKFLOW_TOKEN;
+            if (!workflowToken) {
+              core.warning('WORKFLOW_TOKEN secret not set — falling back to GITHUB_TOKEN. Downstream workflows triggered by the in-progress label may not fire automatically.');
+            }
+            const authToken = workflowToken || process.env.GITHUB_TOKEN;
+            const apiHeaders = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': `Bearer ${authToken}`,
+              'X-GitHub-Api-Version': '2022-11-28'
+            };
+
+            if (labels.includes('ready-for-build')) {
+              const removeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/labels/ready-for-build`, {
+                method: 'DELETE',
+                headers: apiHeaders
+              });
+              core.info(`[auto-transition] remove ready-for-build: ${removeRes.status}`);
+            }
+
+            if (!labels.includes('in-progress')) {
+              const addRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/labels`, {
+                method: 'POST',
+                headers: { ...apiHeaders, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ labels: ['in-progress'] })
+              });
+              core.info(`[auto-transition] add in-progress: ${addRes.status}`);
+              if (!addRes.ok) {
+                const errBody = await addRes.text();
+                core.warning(`[auto-transition] add in-progress failed: ${errBody}`);
+              }
+            }

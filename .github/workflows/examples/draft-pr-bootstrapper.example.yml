@@ -1,20 +1,218 @@
-name: Draft PR Bootstrapper Example
+name: Draft PR Bootstrapper
+
+run-name: >-
+    Draft PR Bootstrapper /
+    ${{ github.event_name }} /
+    ${{ github.event_name == 'issues' && format('issue #{0}', github.event.issue.number) || format('branch {0}', github.ref_name) }}
 
 on:
-  issues:
-    types: [labeled]
-  push:
-    branches:
-      - 'issue-*'
+    issues:
+        types: [labeled]
+    push:
+        branches:
+            - "issue-*"
+
+permissions:
+    contents: write
+    pull-requests: write
+    issues: write
+
+env:
+    EXECUTION_BASE_BRANCH: main
 
 jobs:
-  bootstrap:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    create-draft-pr:
+        name: >-
+            Bootstrap /
+            ${{ github.event_name == 'issues' && format('issue #{0}', github.event.issue.number) || format('branch {0}', github.ref_name) }}
+        if: |
+            (github.event_name == 'issues' && github.event.label.name == 'in-progress') ||
+            github.event_name == 'push'
+        runs-on: ubuntu-latest
 
-      - name: Bootstrap branch or draft PR
-        run: |
-          echo "Example workflow only"
-          echo "Implement repository-specific branch creation and draft PR behavior."
+        steps:
+            - name: "Early log: workflow context"
+              run: |
+                  echo "[draft-pr-bootstrapper][startup] event=${{ github.event_name }} action=${{ github.event.action || 'n-a' }}"
+                  if [ "${{ github.event_name }}" = "issues" ]; then
+                    echo "[draft-pr-bootstrapper][startup] context=issue #${{ github.event.issue.number }}: '${{ github.event.issue.title }}'"
+                  else
+                    echo "[draft-pr-bootstrapper][startup] context=branch $GITHUB_REF_NAME"
+                  fi
+
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'issues' && env.EXECUTION_BASE_BRANCH || github.ref_name }}
+
+            - name: Generate branch name
+              id: branch
+              run: |
+                  if [ "${{ github.event_name }}" = "issues" ]; then
+                    ISSUE_NUMBER=${{ github.event.issue.number }}
+                    TITLE=$(echo "${{ github.event.issue.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed -E 's/-+/-/g' | sed 's/^-//' | sed 's/-$//')
+                    BRANCH="issue-${ISSUE_NUMBER}-${TITLE}"
+                  else
+                    BRANCH="${GITHUB_REF_NAME}"
+                    ISSUE_NUMBER=$(echo "$BRANCH" | sed -E 's/^issue-([0-9]+)-.*$/\1/')
+                  fi
+                  echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+                  echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+            - name: Log workflow context
+              run: |
+                  echo "[draft-pr-bootstrapper] event=${{ github.event_name }} action=${{ github.event.action || 'n-a' }} issue=#${{ steps.branch.outputs.issue_number }} branch=${{ steps.branch.outputs.branch }}"
+
+            - name: Load issue details
+              id: issue
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+                      const issue_number = Number(`${{ steps.branch.outputs.issue_number }}`);
+                      const issue = await github.rest.issues.get({
+                        owner,
+                        repo,
+                        issue_number,
+                      });
+
+                      core.setOutput('title', issue.data.title);
+                      core.setOutput('number', String(issue.data.number));
+
+            - name: Check for existing PR
+              id: existing_pr
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+                      const branch = `${{ steps.branch.outputs.branch }}`;
+                      const head = `${owner}:${branch}`;
+                      const issueNumber = Number(`${{ steps.issue.outputs.number }}`);
+
+                      const prs = await github.paginate(github.rest.pulls.list, {
+                        owner,
+                        repo,
+                        state: 'open',
+                        head,
+                        base: process.env.EXECUTION_BASE_BRANCH,
+                        per_page: 100
+                      });
+
+                      const linked = prs.find(pr => (pr.body || '').includes(`#${issueNumber}`));
+                      core.setOutput('exists', linked ? 'true' : 'false');
+                      if (linked) {
+                        core.setOutput('url', linked.html_url);
+                      }
+
+            - name: Stop if PR already exists
+              if: steps.existing_pr.outputs.exists == 'true'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+                      const issue_number = Number(`${{ steps.issue.outputs.number }}`);
+                      const existingUrl = `${{ steps.existing_pr.outputs.url }}`;
+                      const tag = '<!-- draft-pr-bootstrapper -->';
+                      const comments = await github.paginate(github.rest.issues.listComments, {
+                        owner,
+                        repo,
+                        issue_number,
+                        per_page: 100
+                      });
+                      const existing = comments.find(c => typeof c.body === 'string' && c.body.includes(tag));
+                      const body = `${tag}\nA draft PR already exists for this issue: ${existingUrl}`;
+
+                      if (existing) {
+                        await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                      } else {
+                        await github.rest.issues.createComment({ owner, repo, issue_number, body });
+                      }
+
+            - name: Create branch if missing
+              if: steps.existing_pr.outputs.exists != 'true'
+              run: |
+                  BRANCH="${{ steps.branch.outputs.branch }}"
+                  BASE_BRANCH="${{ env.EXECUTION_BASE_BRANCH }}"
+                  if git ls-remote --exit-code --heads origin "$BRANCH"; then
+                    echo "Branch $BRANCH already exists on origin."
+                  else
+                    git config user.name "github-actions[bot]"
+                    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                    git fetch origin "$BASE_BRANCH"
+                    git checkout -b "$BRANCH" "origin/$BASE_BRANCH"
+                    git push origin "$BRANCH"
+                  fi
+
+            - name: Check branch commit delta
+              id: branch_delta
+              if: steps.existing_pr.outputs.exists != 'true'
+              run: |
+                  BRANCH="${{ steps.branch.outputs.branch }}"
+                  BASE_BRANCH="${{ env.EXECUTION_BASE_BRANCH }}"
+                  git fetch origin "$BASE_BRANCH" "$BRANCH"
+                  AHEAD_COUNT=$(git rev-list --count "origin/$BASE_BRANCH..origin/$BRANCH")
+                  echo "ahead=$AHEAD_COUNT" >> $GITHUB_OUTPUT
+
+            - name: Comment when branch is ready but empty
+              if: steps.existing_pr.outputs.exists != 'true' && steps.branch_delta.outputs.ahead == '0'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+                      const issue_number = Number(`${{ steps.issue.outputs.number }}`);
+                      const branch = `${{ steps.branch.outputs.branch }}`;
+                      const baseBranch = process.env.EXECUTION_BASE_BRANCH;
+                      const tag = '<!-- draft-pr-bootstrapper -->';
+                      const body = `${tag}\nBranch ready: \`${branch}\`\n\nNo commits are ahead of \`${baseBranch}\` yet, so no draft PR was created. Push the first implementation commit and the workflow will open the draft PR automatically.`;
+
+                      const comments = await github.paginate(github.rest.issues.listComments, {
+                        owner,
+                        repo,
+                        issue_number,
+                        per_page: 100
+                      });
+
+                      const existing = comments.find(c => typeof c.body === 'string' && c.body.includes(tag));
+
+                      if (existing) {
+                        await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                      } else {
+                        await github.rest.issues.createComment({ owner, repo, issue_number, body });
+                      }
+
+            - name: Create draft PR
+              if: steps.existing_pr.outputs.exists != 'true' && steps.branch_delta.outputs.ahead != '0'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+                      const branch = `${{ steps.branch.outputs.branch }}`;
+                      const issueNumber = Number(`${{ steps.issue.outputs.number }}`);
+                      const issueTitle = `${{ steps.issue.outputs.title }}`;
+                      const baseBranch = process.env.EXECUTION_BASE_BRANCH;
+                      const title = `feat(issue-${issueNumber}): ${issueTitle}`;
+                      const body = `Closes #${issueNumber}\n\nDraft PR automatically created after the issue branch had commits ahead of \`${baseBranch}\`.\n\n_Context: issue #${issueNumber} — '${issueTitle}' / branch '${branch}' / base '${baseBranch}'_`;
+
+                      const pr = await github.rest.pulls.create({
+                        owner,
+                        repo,
+                        title,
+                        head: branch,
+                        base: baseBranch,
+                        body,
+                        draft: true
+                      });
+
+                      const tag = '<!-- draft-pr-bootstrapper -->';
+                      await github.rest.issues.createComment({
+                        owner,
+                        repo,
+                        issue_number: issueNumber,
+                        body: `${tag}\nDraft PR created: ${pr.data.html_url}`
+                      });
