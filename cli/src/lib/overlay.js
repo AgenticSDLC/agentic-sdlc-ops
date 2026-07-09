@@ -283,6 +283,21 @@ function generateOverlay(config, rootDir) {
       target: path.join(".github", "workflows", "commit-message-validator.yml"),
       source: [".github", "workflows", "examples", "commit-message-validator.example.yml"],
     },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "policy-auto-merge.yml"),
+      source: [".github", "workflows", "examples", "policy-auto-merge.example.yml"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "policy-verifier-gate.yml"),
+      source: [".github", "workflows", "examples", "policy-verifier-gate.example.yml"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "tsconfig-change-guard.yml"),
+      source: [".github", "workflows", "examples", "tsconfig-change-guard.example.yml"],
+    },
   ];
 
   for (const artifact of recommendedArtifacts) {

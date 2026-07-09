@@ -1,0 +1,157 @@
+name: Policy — Auto Merge on Verifier Pass
+
+run-name: >-
+    Auto Merge /
+    issue_comment /
+    ${{ github.event.issue && format('pr #{0}', github.event.issue.number) || 'n/a' }}
+
+# Fires when a PR comment is created. If the comment contains
+# <!-- split-verifier-pass --> and no blocking signals are present,
+# squash-merges the PR automatically and closes the issue.
+#
+# Merge is suppressed when any of these are present on the linked issue:
+#   - label: merge:human-required  (deliberate tier declaration)
+#   - label: hold                  (runtime pause)
+#   - label: needs-human           (runtime interrupt)
+#   - any PR comment containing the word: stop
+
+on:
+    issue_comment:
+        types: [created]
+
+permissions:
+    contents: write
+    pull-requests: write
+    issues: write
+
+jobs:
+    auto-merge:
+        name: >-
+            Auto Merge /
+            ${{ github.event.issue && format('pr #{0}', github.event.issue.number) || 'n/a' }}
+        # Only run on PR comments (not plain issue comments)
+        if: github.event.issue.pull_request != null
+        runs-on: ubuntu-latest
+        steps:
+            - name: Evaluate and auto-merge
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const commentBody = context.payload.comment.body ?? '';
+
+                      // Only act on verifier pass comments
+                      if (!commentBody.includes('<!-- split-verifier-pass -->')) {
+                        core.info('[auto-merge] comment is not a verifier pass — skipping');
+                        return;
+                      }
+
+                      const prNumber = context.payload.issue.number;
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+
+                      const { data: pr } = await github.rest.pulls.get({
+                        owner, repo, pull_number: prNumber,
+                      });
+
+                      if (pr.state !== 'open') {
+                        core.info(`[auto-merge] pr=${prNumber} state=${pr.state} — skipping`);
+                        return;
+                      }
+
+                      if (pr.draft) {
+                        core.info(`[auto-merge] pr=${prNumber} is draft — skipping`);
+                        return;
+                      }
+
+                      // Resolve linked issue number from branch name: issue-<number>-<slug>
+                      const branchMatch = pr.head.ref.match(/^issue-(\d+)-/);
+                      if (!branchMatch) {
+                        core.info(`[auto-merge] pr=${prNumber} branch=${pr.head.ref} — cannot parse issue number, skipping`);
+                        return;
+                      }
+                      const issueNumber = parseInt(branchMatch[1], 10);
+
+                      const { data: issue } = await github.rest.issues.get({
+                        owner, repo, issue_number: issueNumber,
+                      });
+                      const issueLabels = (issue.labels || []).map(l => l.name);
+
+                      const blockingLabels = ['merge:human-required', 'hold', 'needs-human'];
+                      const activeBlocker = blockingLabels.find(l => issueLabels.includes(l));
+                      if (activeBlocker) {
+                        core.info(`[auto-merge] pr=${prNumber} issue=${issueNumber} blocked by label="${activeBlocker}" — skipping`);
+                        await github.rest.issues.createComment({
+                          owner, repo, issue_number: prNumber,
+                          body: `<!-- auto-merge-suppressed -->\n**Auto-merge suppressed** — issue #${issueNumber} has label \`${activeBlocker}\`. A human must review and merge this PR.`,
+                        });
+                        return;
+                      }
+
+                      // Check all PR comments for a stop signal
+                      const comments = await github.paginate(github.rest.issues.listComments, {
+                        owner, repo, issue_number: prNumber, per_page: 100,
+                      });
+                      const hasStop = comments.some(c =>
+                        (c.body ?? '').toLowerCase().includes('stop') &&
+                        !c.body.includes('<!-- agent-job-status') &&
+                        !c.body.includes('<!-- split-')
+                      );
+                      if (hasStop) {
+                        core.info(`[auto-merge] pr=${prNumber} — stop signal found in comments, skipping`);
+                        return;
+                      }
+
+                      const hasBlockerMarker = comments.some(c => (c.body ?? '').includes('<!-- split-verifier-blocker -->'));
+                      if (hasBlockerMarker) {
+                        core.info(`[auto-merge] pr=${prNumber} — split-verifier-blocker present, skipping`);
+                        return;
+                      }
+
+                      // Strip [TASK] prefix and any conventional commit prefix from PR title
+                      // so the squash commit message is clean and not doubled.
+                      const strippedTitle = pr.title
+                        .replace(/^\[TASK\]\s*/i, '')
+                        .replace(/^[a-z]+\(issue-\d+\):\s*/i, '')
+                        .trim();
+                      const commitMessage = `feat(issue-${issueNumber}): ${strippedTitle}`;
+
+                      core.info(`[auto-merge] pr=${prNumber} issue=${issueNumber} merging — "${commitMessage}"`);
+
+                      try {
+                        await github.rest.pulls.merge({
+                          owner, repo,
+                          pull_number: prNumber,
+                          merge_method: 'squash',
+                          commit_title: commitMessage,
+                          commit_message: '',
+                        });
+                      } catch (mergeErr) {
+                        // 405 means a merge is already in progress or just completed
+                        if (mergeErr.status === 405) {
+                          core.info(`[auto-merge] pr=${prNumber} — 405 Merge already in progress, treating as success`);
+                        } else {
+                          throw mergeErr;
+                        }
+                      }
+
+                      // Delete the feature branch
+                      try {
+                        await github.rest.git.deleteRef({
+                          owner, repo,
+                          ref: `heads/${pr.head.ref}`,
+                        });
+                        core.info(`[auto-merge] deleted branch ${pr.head.ref}`);
+                      } catch (e) {
+                        core.warning(`[auto-merge] could not delete branch: ${e.message}`);
+                      }
+
+                      // Transition linked issue to done
+                      await github.rest.issues.removeLabel({
+                        owner, repo, issue_number: issueNumber, name: 'in-review',
+                      }).catch(() => {});
+
+                      await github.rest.issues.addLabels({
+                        owner, repo, issue_number: issueNumber, labels: ['done'],
+                      });
+
+                      core.info(`[auto-merge] issue=${issueNumber} labeled done`);

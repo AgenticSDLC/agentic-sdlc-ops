@@ -1,0 +1,59 @@
+name: Content Spec Coupling
+
+# Enforces that a content file and its corresponding E2E spec are
+# always changed together. Prevents the test from drifting silently
+# when copy or structure changes.
+#
+# Adapt the file pairs below to match your project's coupling contract.
+# Each pair: if `source` changes, `spec` must also change.
+
+on:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    check-content-spec-coupling:
+        name: Coupled content files must change together
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check content / spec coupling
+              run: |
+                  changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+                  errors=0
+
+                  # Adapt: add content→spec pairs for your project.
+                  # Format: "source_file|spec_file"
+                  pairs=(
+                    "app/page.tsx|tests/e2e/homepage-content.spec.ts"
+                  )
+
+                  for pair in "${pairs[@]}"; do
+                    source_file="${pair%%|*}"
+                    spec_file="${pair##*|}"
+
+                    source_changed=false
+                    spec_changed=false
+
+                    echo "$changed" | grep -qF "$source_file" && source_changed=true
+                    echo "$changed" | grep -qF "$spec_file" && spec_changed=true
+
+                    if $source_changed && ! $spec_changed; then
+                      echo ""
+                      echo "ERROR: $source_file was modified but $spec_file was not."
+                      echo "These files are coupled — the spec must be updated atomically with its source."
+                      errors=$((errors + 1))
+                    fi
+                  done
+
+                  if [ "$errors" -gt 0 ]; then
+                    exit 1
+                  fi
+
+                  echo "OK: all content/spec coupling checks passed."

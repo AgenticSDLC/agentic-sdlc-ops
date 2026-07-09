@@ -1,0 +1,43 @@
+name: Tsconfig Change Guard
+
+# Prevents silent tsconfig.json drift from framework or tooling updates.
+# If the change is intentional, add [allow-tsconfig] to the PR title or body.
+
+on:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    guard-tsconfig:
+        name: Require explicit opt-in for tsconfig changes
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Guard tsconfig.json drift
+              run: |
+                  changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+                  if ! echo "$changed" | grep -q "^tsconfig\.json$"; then
+                    echo "OK: tsconfig.json not changed."
+                    exit 0
+                  fi
+
+                  combined_text="${{ github.event.pull_request.title }}
+                  ${{ github.event.pull_request.body }}"
+
+                  if echo "$combined_text" | grep -Eiq "\[allow-tsconfig\]"; then
+                    echo "OK: tsconfig.json changed with explicit [allow-tsconfig] opt-in."
+                    exit 0
+                  fi
+
+                  echo "ERROR: tsconfig.json changed without explicit opt-in."
+                  echo ""
+                  echo "If this change is intentional, add [allow-tsconfig] to the PR title or body."
+                  echo "This guard prevents silent framework-managed tsconfig drift."
+                  exit 1

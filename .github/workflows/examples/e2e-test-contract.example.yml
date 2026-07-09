@@ -1,0 +1,84 @@
+name: E2E Test Dependency Contract
+
+# Requires a filled-out dependency contract in the PR body whenever
+# an E2E spec file is added or modified. The contract must be wrapped
+# in HTML comment markers so it survives PR body edits.
+#
+# Adapt the path filter below to match your project's test layout.
+# Default: tests/e2e/**/*.spec.ts
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  require-contract:
+    name: Require E2E dependency contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require an evidence-backed contract for changed E2E specs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+
+            // Adapt this pattern to match your project's E2E spec path convention
+            const E2E_SPEC_PATTERN = /^tests\/e2e\/.*\.spec\.ts$/;
+
+            const changedE2eSpecs = files
+              .map((file) => file.filename)
+              .filter((filename) => E2E_SPEC_PATTERN.test(filename));
+
+            if (changedE2eSpecs.length === 0) {
+              core.info("No E2E specs changed; dependency contract is not required.");
+              return;
+            }
+
+            const body = context.payload.pull_request.body ?? "";
+            const start = "<!-- e2e-test-dependency-contract:start -->";
+            const end = "<!-- e2e-test-dependency-contract:end -->";
+            const startIndex = body.indexOf(start);
+            const endIndex = body.indexOf(end);
+
+            if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+              core.setFailed(
+                `Changed E2E specs require the E2E Test Dependency Contract in the PR body: ${changedE2eSpecs.join(", ")}`,
+              );
+              return;
+            }
+
+            const contract = body.slice(startIndex + start.length, endIndex);
+
+            // These fields must be present and filled out (not left as [required])
+            const requiredFields = [
+              "Helper or route used:",
+              "Request method and input:",
+              "Required preconditions and fixture state:",
+              "Side effects and response/error behavior:",
+              "Source evidence (file and line):",
+              "Targeted command and result:",
+            ];
+
+            const missing = requiredFields.filter((field) => {
+              const line = contract
+                .split("\n")
+                .find((candidate) => candidate.includes(field));
+              return !line || /\[required\]|:\s*$/.test(line);
+            });
+
+            if (missing.length > 0) {
+              core.setFailed(
+                `Complete the E2E Test Dependency Contract before review. Missing fields: ${missing.join(", ")}`,
+              );
+              return;
+            }
+
+            core.info(`E2E dependency contract accepted for: ${changedE2eSpecs.join(", ")}`);

@@ -1,17 +1,46 @@
-name: Commit Message Validator Example
+name: Commit Message Validator
 
 on:
   pull_request:
     types: [opened, synchronize, edited]
 
+permissions:
+  pull-requests: read
+  contents: read
+
 jobs:
   validate:
+    name: Validate commit messages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate commit or PR title convention
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate commit messages on branch
         run: |
-          echo "Example workflow only"
-          echo "Implement repository-specific commit or PR title convention checks."
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          ERRORS=0
+
+          for sha in $(git log --format="%H" "$BASE..$HEAD"); do
+            MSG=$(git log -1 --format="%s" "$sha")
+            if ! echo "$MSG" | node scripts/validate-commit-message.js; then
+              echo "  → commit $sha: $MSG"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo ""
+            echo "ERROR: $ERRORS commit message(s) failed validation."
+            exit 1
+          fi
+
+          echo "All commit messages passed."

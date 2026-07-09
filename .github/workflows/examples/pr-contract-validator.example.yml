@@ -1,17 +1,25 @@
-name: PR Contract Validator Example
+name: PR Contract Validator
 
 on:
   pull_request:
     types: [opened, edited, synchronize, ready_for_review]
 
+permissions:
+  pull-requests: read
+  contents: read
+
 jobs:
   validate:
+    name: Validate PR contract
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Validate PR contract
-        run: |
-          echo "Example workflow only"
-          echo "Run a portable PR contract validator such as templates/scripts/validate-pr.js."
+        run: node scripts/validate-pr.js
