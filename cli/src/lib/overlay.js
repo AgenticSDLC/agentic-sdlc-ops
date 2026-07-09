@@ -328,6 +328,13 @@ function generateOverlay(config, rootDir) {
   }
 
   ensureDirectory(path.join(rootDir, ".agentic", "issues", "drafts"));
+  ensureDirectory(path.join(rootDir, ".agentic", "issues", "archive"));
+
+  writeManagedFile(
+    path.join(rootDir, ".agentic", "issues", "drafts", "README.md"),
+    loadTemplate("templates", "issue-drafts-readme.md"),
+    summary
+  );
 
   if (config.seedIssue) {
     updateManagedFile(
