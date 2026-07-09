@@ -244,6 +244,26 @@ function generateOverlay(config, rootDir) {
       source: ["templates", "env-manifest.md"],
     },
     {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join("docs", "operations", "COMBINED-TOPOLOGY-RUNBOOK.md"),
+      source: ["templates", "COMBINED-TOPOLOGY-RUNBOOK.md"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join("docs", "operations", "SPLIT-TOPOLOGY-RUNBOOK.md"),
+      source: ["templates", "SPLIT-TOPOLOGY-RUNBOOK.md"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join("docs", "operations", "TOPOLOGY-CHECKLISTS.md"),
+      source: ["templates", "TOPOLOGY-CHECKLISTS.md"],
+    },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join("docs", "operations", "SOP-ISSUE-EXECUTION-EVIDENCE.md"),
+      source: ["templates", "SOP-ISSUE-EXECUTION-EVIDENCE.md"],
+    },
+    {
       enabled: true,
       target: path.join("scripts", "validate-issue.js"),
       source: ["templates", "scripts", "validate-issue.js"],
