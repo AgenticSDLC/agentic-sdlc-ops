@@ -1,0 +1,4 @@
+# Disable blank issue creation so contributors use structured templates.
+# This ensures required sections (Context, Requirements, Acceptance Criteria)
+# are present and issues are executable by both humans and AI contributors.
+blank_issues_enabled: false

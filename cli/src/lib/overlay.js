@@ -188,6 +188,21 @@ function generateOverlay(config, rootDir) {
     summary
   );
   writeManagedFile(
+    path.join(rootDir, ".github", "ISSUE_TEMPLATE", "agentic-epic.md"),
+    loadTemplate("templates", "issue-epic.md"),
+    summary
+  );
+  writeManagedFile(
+    path.join(rootDir, ".github", "ISSUE_TEMPLATE", "agentic-feature.md"),
+    loadTemplate("templates", "issue-feature.md"),
+    summary
+  );
+  writeManagedFile(
+    path.join(rootDir, ".github", "ISSUE_TEMPLATE", "config.yml"),
+    loadTemplate("templates", "issue-template-config.yml"),
+    summary
+  );
+  writeManagedFile(
     path.join(rootDir, ".github", "pull_request_template.md"),
     renderTemplate(loadTemplate("templates", "pr-template.md"), {
       issue_number: "<issue-number>",
