@@ -279,6 +279,16 @@ function generateOverlay(config, rootDir) {
       source: ["templates", "scripts", "validate-commit-message.js"],
     },
     {
+      enabled: true,
+      target: path.join("scripts", "validate-tests.sh"),
+      source: ["templates", "scripts", "validate-tests.sh"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "git-clean-merged-pr-branches.sh"),
+      source: ["templates", "scripts", "git-clean-merged-pr-branches.sh"],
+    },
+    {
       enabled: config.workflowScaffolding === "recommended",
       target: path.join(".github", "workflows", "issue-readiness-validator.yml"),
       source: [".github", "workflows", "examples", "issue-readiness-validator.example.yml"],

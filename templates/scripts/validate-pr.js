@@ -28,7 +28,6 @@ if (!conventionalCommitPattern.test(title)) {
 }
 
 for (const section of [
-  "## Linked Issue",
   "## Acceptance Criteria",
   "## Verification",
   "## Risks / Follow-Up",
@@ -38,8 +37,8 @@ for (const section of [
   }
 }
 
-if (!/Closes #\d+/i.test(body)) {
-  errors.push("PR body must link an issue using `Closes #<number>`.");
+if (!/(?:Closes|Implements:.*?)#\d+/i.test(body)) {
+  errors.push("PR body must link an issue using `Closes #<number>` or `Implements: #<number>`.");
 }
 
 if (errors.length) {
