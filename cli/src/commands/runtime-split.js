@@ -18,7 +18,9 @@ const {
   getWorktreeStatus,
   pushBranch,
   prepareCombinedRuntime,
+  buildBranchName,
 } = require("../lib/runtime-combined");
+const { resolveRuntimeWorkingDirectory } = require("../lib/worktree");
 const {
   IMPLEMENTATION_MARKER,
   SPLIT_ROLES,
@@ -41,9 +43,17 @@ function getIssueLabelNames(issue) {
   return (issue.labels || []).map((l) => (typeof l === "string" ? l : l.name));
 }
 
+function applyBackendOverride(config, backendName) {
+  if (backendName) {
+    config.execution = config.execution || {};
+    config.execution.agentBackend = backendName;
+  }
+  return config;
+}
+
 async function handleRuntimeSplit(args) {
-  const rootDir = path.resolve(args.target || process.cwd());
-  const inspection = inspectTarget(rootDir);
+  let rootDir = path.resolve(args.target || process.cwd());
+  let inspection = inspectTarget(rootDir);
   const profile = args.profile || inferProfile(inspection);
 
   if (profile !== "web-app") {
@@ -52,14 +62,8 @@ async function handleRuntimeSplit(args) {
     );
   }
 
-  const config = buildConfig(rootDir, { ...args, profile }, inspection);
-  if (args.backend) {
-    config.execution = config.execution || {};
-    config.execution.agentBackend = args.backend;
-  }
-
-  const controlPlane = getControlPlane(config);
-  const executionBackend = getExecutionBackend(config);
+  let config = applyBackendOverride(buildConfig(rootDir, { ...args, profile }, inspection), args.backend);
+  let controlPlane = getControlPlane(config);
   const current = controlPlane.capabilities.getIssue(rootDir, args.issue);
 
   const labels = getIssueLabelNames(current.issue);
@@ -68,6 +72,24 @@ async function handleRuntimeSplit(args) {
       `Issue #${current.issue.number} does not carry \`topology:split\`. Use \`agentic-sdlc runtime combined --issue ${args.issue}\` or add the topology label first.`
     );
   }
+
+  // If this issue's branch already lives in its own worktree (created via
+  // `agentic-sdlc issue worktree`), operate there instead of rootDir — split
+  // roles run in short bursts across time, so this matters even more than
+  // for combined: a stale local checkout between planner and builder runs is
+  // exactly what worktrees prevent. Refuses instead of guessing when
+  // --target was explicit and doesn't match.
+  const branch = buildBranchName(current.issue);
+  const worktreeResolution = resolveRuntimeWorkingDirectory(rootDir, branch, Boolean(args.target));
+  if (worktreeResolution.redirected) {
+    rootDir = worktreeResolution.rootDir;
+    inspection = inspectTarget(rootDir);
+    config = applyBackendOverride(buildConfig(rootDir, { ...args, profile }, inspection), args.backend);
+    controlPlane = getControlPlane(config);
+    printDetail("Worktree", `auto-detected for \`${branch}\` — operating in ${rootDir}`);
+  }
+
+  const executionBackend = getExecutionBackend(config);
 
   if (args.finalize) {
     await runFinalize(rootDir, args, config, controlPlane, current);

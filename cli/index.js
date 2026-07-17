@@ -8,6 +8,7 @@ const { handleIssueTransition } = require("./src/commands/issue-transition");
 const { handleRuntimeCombined } = require("./src/commands/runtime-combined");
 const { handleRuntimeSplit } = require("./src/commands/runtime-split");
 const { handleIssueList } = require("./src/commands/issue-list");
+const { handleIssueWorktree } = require("./src/commands/issue-worktree");
 
 async function loadChalk() {
   try {
@@ -170,6 +171,25 @@ Examples:
       .action(async (options) => {
         console.log(banner);
         await handleIssueList(options);
+      }),
+  );
+  applyCommonOptions(
+    issue
+      .command("worktree")
+      .description(
+        "Create or remove an isolated git worktree for an issue, so it can be worked in parallel with other issues",
+      )
+      .option("--issue <number>", "Issue number")
+      .option(
+        "--path <dir>",
+        "Explicit worktree directory (default: sibling directory named <repo>-<branch>)",
+      )
+      .option("--remove", "Remove the worktree for this issue")
+      .option("--force", "Force-remove even with uncommitted changes")
+      .option("--list", "List active issue worktrees")
+      .action(async (options) => {
+        console.log(banner);
+        await handleIssueWorktree(options);
       }),
   );
   applyCommonOptions(

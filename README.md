@@ -158,6 +158,7 @@ Current capabilities include:
 - spec publishing to GitHub with standard lifecycle labels
 - lifecycle transitions through `ready-for-build`, `in-progress`, `in-review`, and `done`
 - combined-path runtime for `web-app` + GitHub, including visible plan publication, issue-branch create/reuse, draft PR create/update, a pluggable local implementation backend, verification publication, `in-review` transition, and `done` finalization for merged PRs
+- isolated issue worktrees for parallel workstreams, with fail-closed remote-branch checks and explicit workspace-path support for sandboxed executors
 - post-install doctor checks plus standalone `doctor`
 - portable reference templates for task classes, platform actors, label catalogs, CLI SOPs, issue-first workflow docs, and environment manifests
 - reference validator scripts and GitHub workflow examples derived from proving-ground patterns

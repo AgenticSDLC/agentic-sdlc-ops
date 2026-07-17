@@ -75,7 +75,35 @@ Notes:
 - Pass the real title and labels explicitly in the command
 - Once published, the live GitHub Issue is authoritative
 
+## Parallel Workstreams
+
+Every issue gets its own branch (`issue-<number>-<slug>`), but a single checkout can only have one branch switched in at a time — that is what actually blocks running multiple issues at once, not the branch model itself. To work more than one issue concurrently, give each issue its own git worktree instead of repeatedly switching branches in one directory:
+
+```bash
+agentic-sdlc issue worktree --issue <issue-id>
+```
+
+This creates an isolated working directory (default: a sibling directory named `<repo>-issue-<id>-<slug>`) with the issue branch already checked out. `agentic-sdlc runtime combined --issue <issue-id>` auto-detects that worktree and operates there — no need to `cd` first or pass `--target` — as long as you don't also pass an explicit `--target` pointing somewhere else (if you do and it doesn't match, the runtime refuses rather than guessing which checkout you meant). Start a session (Claude Code or otherwise) *inside* that worktree directory to work the issue in isolation from every other issue's in-progress changes.
+
+The command fails closed if the automation-created remote issue branch does not exist or cannot be fetched. It never creates a substitute branch from local `main`.
+
+Auto-detection does not expand an executor's filesystem permissions. For Codex or another sandboxed executor, start a new session with the worktree as a writable workspace root. If a suitable writable location is already approved, choose it explicitly:
+
+```bash
+agentic-sdlc issue worktree --issue <issue-id> --path <writable-dir>
+```
+
+When the issue reaches `done`:
+
+```bash
+agentic-sdlc issue worktree --issue <issue-id> --remove
+```
+
+`agentic-sdlc issue worktree --list` shows every active issue worktree.
+
 ## Prepare The Issue And Branch
+
+If you are not using a dedicated worktree for this issue, prepare the branch in your current checkout:
 
 ```bash
 gh issue view <issue-id> --comments
@@ -88,7 +116,8 @@ git branch --show-current
 Expected result:
 - Issue comments show the branch-ready note or an existing draft PR
 - Remote branch exists
-- Local checkout is on the issue branch, not the base branch
+- The checkout or dedicated worktree used for implementation is on the issue branch, not the base branch
+- A shared control checkout may remain on the base branch when implementation runs in a dedicated worktree
 
 ## Write A Preflight Plan
 
@@ -157,6 +186,7 @@ If this is the first commit with content, the draft PR bootstrapper creates the 
 
 **Local checkout cannot switch cleanly:**
 - Stop and ask for guidance instead of forcing through local state
+- If this keeps happening because multiple issues are active at once, that is a sign you want `agentic-sdlc issue worktree --issue <id>` instead of sharing one checkout across issues
 
 **Verification fails:**
 - Iterate until checks pass, or report the blocker and pause for guidance

@@ -30,8 +30,9 @@ Use these short checklists alongside:
 - [ ] Issue has the `in-progress` label
 - [ ] For `topology:split`: visible planner handoff already exists on the issue
 - [ ] Remote issue branch exists and follows `issue-<number>-<slug>` naming
-- [ ] Local checkout has switched to the issue branch
-- [ ] Local checkout is not the base branch
+- [ ] The checkout used for implementation has switched to the issue branch, or a dedicated worktree exists for it (`agentic-sdlc issue worktree --issue <id>`)
+- [ ] The implementation checkout/worktree is not on the base branch; a separate shared control checkout may remain on the base branch
+- [ ] The executor has write access to the implementation worktree; auto-detection does not expand sandbox permissions
 - [ ] If branch checkout fails: stop and ask for guidance instead of implementing on the base branch
 
 ## Split Handoff Checklist
@@ -76,7 +77,7 @@ Use these short checklists alongside:
 - [ ] Required CI checks completed successfully for the PR's current head — the verifier audits CI, it does not rerun the work
 - [ ] Required evidence artifacts exist
 - [ ] PR diff matches the issue Target Files and the planner handoff scope
-- [ ] Reuse audit performed: every added function/helper/component searched against the codebase and the adapter's Reuse Map; duplicates of existing implementations are blockers unless justified in the handoff or PR
+- [ ] Reuse audit performed: every added function/helper/component searched against the codebase and, when defined, the adapter's Reuse Map; duplicates of existing implementations are blockers unless justified in the handoff or PR
 - [ ] Pass or blocker status reported on the PR with `<!-- split-verifier-pass -->` or `<!-- split-verifier-blocker -->`
 - [ ] Verification reporting kept separate from implementation scope
 

@@ -2,11 +2,11 @@
 
 1. The **live provider work item body** is the authoritative task spec. Local drafts (`.agentic/issues/drafts/*.md`) are reference only and are superseded by the live issue the moment it is published.
 2. Read the live issue before doing anything else.
-3. Read the repository's local project adapter (declared in `.agentic/project-adapter.md` or the path the adapter specifies). It is the authoritative source for branch naming, verification commands, test file guardrails, and stop-and-ask conditions.
+3. Read the repository's local project adapter (declared in `.agentic/project-adapter.md` or the path the adapter specifies). It is the authoritative source for branch naming, verification commands, test file guardrails, and stop-and-ask conditions. If the root adapter declares workspace adapters, identify the workspace from the issue's `Target Files` and use that workspace adapter for its verification commands and guardrails; use the root adapter only for monorepo-level defaults or as an explicitly documented fallback.
 4. If the issue has no `topology:*` label, you are in `topology:combined` — one executor, one PR, default local execution. Skip the Split Topology section below; it does not apply.
-5. Confirm the issue has the execution start label defined in the project adapter, and that the branch exists and is checked out locally. If not, stop and follow the stop-and-ask rules below.
+5. Confirm the issue has the execution start label defined in the project adapter, and that the branch exists and is checked out locally. If not, stop and follow the stop-and-ask rules below. If a dedicated worktree for this issue already exists (see **Parallel Workstreams** below), work there instead of switching branches in a shared checkout.
 6. State a short preflight plan: chosen approach, files to touch, how each acceptance criterion will be met, confirmation this stays within declared scope. No human approval is needed to proceed if the plan is in-scope and no stop signal is present.
-7. Implement only what the issue requires. Do not expand scope (see **Ambiguity Resolution**). Before creating any new helper, utility, or component, check the project adapter's Canonical Utilities (Reuse Map) and search the codebase for an existing equivalent — reuse it, or record why it does not fit in the PR's Prior Art & Reuse section. Duplicating an existing implementation is treated as a defect, not a style issue.
+7. Implement only what the issue requires. Do not expand scope (see **Ambiguity Resolution**). Before creating any new helper, utility, or component, check the project adapter's Canonical Utilities (Reuse Map) when one is defined and search the codebase for an existing equivalent — reuse it, or record why it does not fit in the PR's Prior Art & Reuse section. Duplicating an existing implementation is treated as a defect, not a style issue.
 8. Run the repository's verification commands locally before pushing. Local results are fast feedback — they are not verification evidence and do not constitute task completion. Fix any failures, then push. CI owns verification from that point. Your job ends at `git push`.
 
 Everything past this point is either detail behind these steps or guidance for less common situations. Treat any docs or sections explicitly required by the issue or project adapter as mandatory.
@@ -58,6 +58,20 @@ If the project adapter conflicts with a general rule in this file, the project a
 Issue created → readiness validation → execution start label applied → implementation authorized → branch created → push → PR opened → CI runs → merge on green.
 
 Agents may execute only when the execution start condition in the project adapter is met. Do not create additional branches or PRs unless the adapter explicitly allows it.
+
+---
+
+## Parallel Workstreams
+
+Every issue's branch is `issue-<number>-<slug>` under both topologies — that alone does not enable running multiple issues at once, since one checkout can only have one branch switched in at a time. To work more than one issue concurrently, each issue needs its own git worktree:
+
+```bash
+agentic-sdlc issue worktree --issue <issue-id>
+```
+
+The command refuses unless the automation-created remote issue branch already exists; a worktree never substitutes for the lifecycle's branch-creation step.
+
+`runtime combined`/`runtime split` auto-detect an existing worktree for the issue's branch and operate there without needing an explicit `--target` — they refuse rather than guess if you pass `--target` pointing somewhere else. Auto-detection selects a directory; it does not grant filesystem access. Start the executor with that worktree as a writable workspace root. For an already-running sandboxed session such as Codex, open a new session rooted at the worktree or create it with `--path <writable-dir>` in a location the session is allowed to edit. Remove the worktree once the issue reaches `done`: `agentic-sdlc issue worktree --issue <issue-id> --remove`.
 
 ---
 

@@ -23,7 +23,9 @@ const {
   runVerification,
   validateVerificationPrerequisites,
   prepareCombinedRuntime,
+  buildBranchName,
 } = require("../lib/runtime-combined");
+const { resolveRuntimeWorkingDirectory } = require("../lib/worktree");
 const { validateLifecycleTransition } = require("../lib/policy");
 const { printFooter, printKeyValue, printSection, printPhase, printDetail } = require("../ui");
 
@@ -49,8 +51,8 @@ function detectCompletedPhases(comments) {
 }
 
 async function handleRuntimeCombined(args) {
-  const rootDir = path.resolve(args.target || process.cwd());
-  const inspection = inspectTarget(rootDir);
+  let rootDir = path.resolve(args.target || process.cwd());
+  let inspection = inspectTarget(rootDir);
   const profile = args.profile || inferProfile(inspection);
 
   if (profile !== "web-app") {
@@ -59,9 +61,8 @@ async function handleRuntimeCombined(args) {
     );
   }
 
-  const config = buildConfig(rootDir, { ...args, profile }, inspection);
-  const controlPlane = getControlPlane(config);
-  const executionBackend = getExecutionBackend(config);
+  let config = buildConfig(rootDir, { ...args, profile }, inspection);
+  let controlPlane = getControlPlane(config);
   const current = controlPlane.capabilities.getIssue(rootDir, args.issue);
 
   const issueLabelNames = (current.issue.labels || []).map((l) => (typeof l === "string" ? l : l.name));
@@ -70,6 +71,23 @@ async function handleRuntimeCombined(args) {
       `Issue #${current.issue.number} uses \`topology:split\`. Run \`agentic-sdlc runtime split --issue ${args.issue}\` instead.`
     );
   }
+
+  // If this issue's branch already lives in its own worktree (created via
+  // `agentic-sdlc issue worktree`), operate there instead of rootDir — the
+  // whole point of a worktree is to let issues run in parallel without
+  // fighting over one checkout. Refuses instead of guessing when --target
+  // was explicit and doesn't match.
+  const branch = buildBranchName(current.issue);
+  const worktreeResolution = resolveRuntimeWorkingDirectory(rootDir, branch, Boolean(args.target));
+  if (worktreeResolution.redirected) {
+    rootDir = worktreeResolution.rootDir;
+    inspection = inspectTarget(rootDir);
+    config = buildConfig(rootDir, { ...args, profile }, inspection);
+    controlPlane = getControlPlane(config);
+    printDetail("Worktree", `auto-detected for \`${branch}\` — operating in ${rootDir}`);
+  }
+
+  const executionBackend = getExecutionBackend(config);
 
   // Explicit finalize (post-merge)
   if (args.finalize) {

@@ -111,6 +111,22 @@ Expected: `in-progress` present, `ready-for-build` absent. If the issue is stuck
 
 For `topology:split`, this transition starts the planner phase. The builder does not begin until the visible planner handoff exists.
 
+## Parallel Workstreams
+
+Split's phases run as separate invocations over time — planner now, builder later, verifier later still — which makes a shared, single checkout even more fragile than in combined: whatever branch happens to be switched in when the builder phase finally runs might belong to a different issue entirely. Give each issue its own worktree before starting the planner phase:
+
+```bash
+agentic-sdlc issue worktree --issue <issue-id>
+```
+
+`agentic-sdlc runtime split --issue <issue-id>` (any role, any phase) auto-detects that worktree and operates there regardless of which directory you invoke it from — as long as you don't also pass an explicit `--target` pointing elsewhere, in which case it refuses rather than guessing. This means the planner, builder, and verifier phases for one issue can run hours apart, or a different session can pick up the builder phase, without anyone needing to remember which branch was checked out last.
+
+The command fails closed if the automation-created remote issue branch does not exist or cannot be fetched. It never creates a substitute branch from local `main`.
+
+Auto-detection does not expand an executor's filesystem permissions. For Codex or another sandboxed executor, start a new session with the worktree as a writable workspace root, or pass `--path <writable-dir>` when creating it if the executor already has an approved writable location.
+
+Remove the worktree once the issue reaches `done`: `agentic-sdlc issue worktree --issue <issue-id> --remove`. List active ones with `agentic-sdlc issue worktree --list`.
+
 ## 6. Planner Phase
 
 The planner leaves a visible handoff artifact on the issue before any code is written.
@@ -118,7 +134,7 @@ The planner leaves a visible handoff artifact on the issue before any code is wr
 The planner handoff must include:
 - Chosen approach
 - Exact files or surfaces expected to change
-- Prior art & reuse: what existing utilities, components, or patterns were searched for (start from the adapter's Canonical Utilities / Reuse Map); for each hit, reuse it or justify concretely why it does not fit. The builder is bound by these decisions — this section is required, and a handoff without it does not authorize the builder.
+- Prior art & reuse: what existing utilities, components, or patterns were searched for (start from the adapter's Canonical Utilities / Reuse Map when one is defined); for each hit, reuse it or justify concretely why it does not fit. The builder is bound by these decisions — this section is required, and a handoff without it does not authorize the builder.
 - Acceptance-criteria mapping
 - Confirmation that the work stays within the issue contract
 
@@ -135,7 +151,9 @@ Before implementing, the builder confirms the start conditions:
 - Issue still has `in-progress`
 - Visible planner handoff exists on the issue
 - Remote issue branch exists (`issue-<number>-<slug>`)
-- Local checkout has switched to the issue branch
+- The checkout or dedicated worktree used for implementation is on the issue branch
+
+If you are not using a dedicated worktree for this issue (see Parallel Workstreams above), prepare the branch manually:
 
 ```bash
 gh issue view <issue-id> --comments
@@ -232,3 +250,4 @@ If the diff review surfaces problems, post a PR comment describing each issue so
 
 **Local checkout cannot switch cleanly:**
 - Stop and ask for guidance instead of forcing through local state
+- If this keeps happening because multiple issues are active at once, that is a sign you want `agentic-sdlc issue worktree --issue <id>` instead of sharing one checkout across issues — this is especially likely in split, since planner and builder phases run at different times
