@@ -128,10 +128,10 @@ function detectExistingOverlay(rootDir) {
 
 function hasMinimumAgentsContract(contents) {
   const requiredMarkers = [
-    "Execution Source of Truth",
-    "Mandatory Preflight Plan",
+    "authoritative task spec",
+    "Verification is owned by CI",
     "Issue Lifecycle",
-    "Verification Rule",
+    "Topology",
   ];
 
   return requiredMarkers.every((marker) => contents.includes(marker));
@@ -414,7 +414,9 @@ function buildConfig(rootDir, args, inspection) {
     humanQaGate,
     browserValidation,
     execution: {
-      agentBackend: "openai-api",
+      // null = let execution-backends resolve (env override, then sole
+      // detected API key, then the documented openai-api fallback).
+      agentBackend: null,
     },
     verification: {
       lint: scripts.lint
@@ -559,7 +561,72 @@ function collectOverlayStatus(rootDir) {
       "workflows",
       "commit-message-validator.yml"
     ),
+    policyAutoMergeWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "policy-auto-merge.yml"
+    ),
+    policyVerifierGateWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "policy-verifier-gate.yml"
+    ),
+    mergeGatePolicyScript: path.join(rootDir, "scripts", "merge-gate-policy.mjs"),
+    splitRunbook: path.join(
+      rootDir,
+      "docs",
+      "operations",
+      "SPLIT-TOPOLOGY-RUNBOOK.md"
+    ),
+    topologyChecklists: path.join(
+      rootDir,
+      "docs",
+      "operations",
+      "TOPOLOGY-CHECKLISTS.md"
+    ),
+    claudePlannerAgent: path.join(rootDir, ".claude", "agents", "planner.md"),
+    claudeBuilderAgent: path.join(rootDir, ".claude", "agents", "builder.md"),
+    claudeVerifierAgent: path.join(rootDir, ".claude", "agents", "verifier.md"),
+    setupPrereqs: path.join(rootDir, "docs", "operations", "SETUP-PREREQS.md"),
+    reuseGuardWorkflow: path.join(
+      rootDir,
+      ".github",
+      "workflows",
+      "reuse-guard.yml"
+    ),
   };
+
+  // Assets audited as "recommended" — missing ones are doctor warnings, not
+  // hard failures. Everything not listed here (minus the seed drafts) is
+  // required overlay surface.
+  const recommendedKeys = [
+    "taskClasses",
+    "platformActors",
+    "labelCatalog",
+    "ghCliSop",
+    "issueFirstWorkflow",
+    "environmentManifest",
+    "validateIssueScript",
+    "validatePrScript",
+    "validateCommitMessageScript",
+    "issueReadinessWorkflow",
+    "draftPrBootstrapperWorkflow",
+    "issuePrStateSyncWorkflow",
+    "prContractValidatorWorkflow",
+    "commitMessageValidatorWorkflow",
+    "policyAutoMergeWorkflow",
+    "policyVerifierGateWorkflow",
+    "mergeGatePolicyScript",
+    "splitRunbook",
+    "topologyChecklists",
+    "claudePlannerAgent",
+    "claudeBuilderAgent",
+    "claudeVerifierAgent",
+    "setupPrereqs",
+    "reuseGuardWorkflow",
+  ];
 
   const agentsExists = fs.existsSync(files.agents);
   const agentsContents = agentsExists
@@ -578,46 +645,12 @@ function collectOverlayStatus(rootDir) {
     missingRequired: Object.entries(files)
       .filter(
         ([name]) =>
-          ![
-            "combinedSeedIssue",
-            "splitSeedIssue",
-            "taskClasses",
-            "platformActors",
-            "labelCatalog",
-            "ghCliSop",
-            "issueFirstWorkflow",
-            "environmentManifest",
-            "validateIssueScript",
-            "validatePrScript",
-            "validateCommitMessageScript",
-            "issueReadinessWorkflow",
-            "draftPrBootstrapperWorkflow",
-            "issuePrStateSyncWorkflow",
-            "prContractValidatorWorkflow",
-            "commitMessageValidatorWorkflow",
-          ].includes(name)
+          !["combinedSeedIssue", "splitSeedIssue", ...recommendedKeys].includes(name)
       )
       .filter(([, filePath]) => !fs.existsSync(filePath))
       .map(([, filePath]) => path.relative(rootDir, filePath)),
     missingRecommended: Object.entries(files)
-      .filter(([name]) =>
-        [
-          "taskClasses",
-          "platformActors",
-          "labelCatalog",
-          "ghCliSop",
-          "issueFirstWorkflow",
-          "environmentManifest",
-          "validateIssueScript",
-          "validatePrScript",
-          "validateCommitMessageScript",
-          "issueReadinessWorkflow",
-          "draftPrBootstrapperWorkflow",
-          "issuePrStateSyncWorkflow",
-          "prContractValidatorWorkflow",
-          "commitMessageValidatorWorkflow",
-        ].includes(name)
-      )
+      .filter(([name]) => recommendedKeys.includes(name))
       .filter(([, filePath]) => !fs.existsSync(filePath))
       .map(([, filePath]) => path.relative(rootDir, filePath)),
     hasCombinedSeedIssue: fs.existsSync(files.combinedSeedIssue),

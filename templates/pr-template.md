@@ -57,6 +57,18 @@ Copy from the GitHub Issue. Do not rewrite from memory.
 
 ---
 
+## Prior Art & Reuse
+
+Required when this PR adds any new exported function, helper, or component.
+For each addition: name the existing equivalent you searched for and reused,
+or justify concretely why nothing existing fit. In split topology, carry the
+planner handoff's Prior Art & Reuse decisions forward here.
+
+- No new exports in this PR, or:
+-
+
+---
+
 ## Verification
 
 How was this change verified?

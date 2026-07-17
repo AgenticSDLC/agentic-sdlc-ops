@@ -1,39 +1,11 @@
 const { extractMarkdownSections } = require("../policy");
+const { getFrameworkHints, readTargetFileContents } = require("./shared");
 
 const OPENAI_API_BASE = "https://api.openai.com/v1";
-const DEFAULT_MODEL = "gpt-4.1";
+const DEFAULT_MODEL = "gpt-5.5";
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 2000;
 const HEADERS_TIMEOUT_MS = 120000;
-
-function getFrameworkHints(config) {
-  const preset = (config && config.stackPreset) || "";
-  if (preset.startsWith("nextjs")) {
-    return [
-      "## Framework: Next.js",
-      "- Use `import Link from 'next/link'` for internal navigation. Do NOT use raw `<a>` tags for internal routes.",
-      "- Use `import Image from 'next/image'` instead of `<img>` tags.",
-      "- App Router files live in `app/`. Pages are `page.tsx`, layouts are `layout.tsx`.",
-      "- Client components must have `'use client'` at the top. Server components are the default.",
-      "- Do not import from `next/router` — use `next/navigation` for App Router.",
-    ];
-  }
-  if (preset.startsWith("react-vite")) {
-    return [
-      "## Framework: React + Vite",
-      "- Use `react-router-dom` for routing if present.",
-      "- Entry point is typically `src/main.tsx`.",
-    ];
-  }
-  if (preset.startsWith("remix")) {
-    return [
-      "## Framework: Remix",
-      "- Use `<Link>` from `@remix-run/react` for navigation.",
-      "- Routes live in `app/routes/`.",
-    ];
-  }
-  return [];
-}
 
 function buildPrompt(context, currentFiles) {
   const sections = extractMarkdownSections(context.issue.body || "");
@@ -110,8 +82,39 @@ function getOutputText(responseJson) {
   throw new Error("OpenAI Responses API did not return output_text");
 }
 
-async function callOpenAI(prompt, apiKey, model) {
+async function callOpenAI(prompt, apiKey, model, expect = "json") {
   let lastError = null;
+
+  const requestBody = { model, input: prompt };
+  if (expect === "json") {
+    requestBody.text = {
+      format: {
+        type: "json_schema",
+        name: "builder_edits",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            summary: { type: "string" },
+            edits: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  path: { type: "string" },
+                  content: { type: "string" },
+                },
+                required: ["path", "content"],
+              },
+            },
+          },
+          required: ["summary", "edits"],
+        },
+      },
+    };
+  }
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -125,37 +128,7 @@ async function callOpenAI(prompt, apiKey, model) {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model,
-          input: prompt,
-          text: {
-            format: {
-              type: "json_schema",
-              name: "builder_edits",
-              strict: true,
-              schema: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  summary: { type: "string" },
-                  edits: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      additionalProperties: false,
-                      properties: {
-                        path: { type: "string" },
-                        content: { type: "string" },
-                      },
-                      required: ["path", "content"],
-                    },
-                  },
-                },
-                required: ["summary", "edits"],
-              },
-            },
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       clearTimeout(timeout);
@@ -167,7 +140,7 @@ async function callOpenAI(prompt, apiKey, model) {
 
       const responseJson = JSON.parse(responseText);
       const outputText = getOutputText(responseJson);
-      return JSON.parse(outputText);
+      return expect === "text" ? outputText : JSON.parse(outputText);
     } catch (error) {
       lastError = error;
       if (attempt < MAX_ATTEMPTS && isTransientFailure(error)) {
@@ -196,24 +169,8 @@ async function runOpenAIBackend(rootDir, context) {
     };
   }
 
-  const model = process.env.AGENTIC_MODEL || DEFAULT_MODEL;
-
-  // Load current contents of target files for context
-  const { extractMarkdownSections: extractSections } = require("../policy");
-  const issueSections = extractSections(context.issue.body || "");
-  const rawTargets = issueSections.get("target files") || issueSections.get("target subsystem") || "";
-  const targetPaths = rawTargets.split("\n")
-    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim().replace(/^`|`$/g, ""))
-    .filter(Boolean);
-
-  const currentFiles = [];
-  for (const filePath of targetPaths) {
-    const abs = path.join(rootDir, filePath);
-    if (fs.existsSync(abs)) {
-      currentFiles.push({ path: filePath, content: fs.readFileSync(abs, "utf8") });
-    }
-  }
-
+  const model = context.model || process.env.AGENTIC_MODEL || DEFAULT_MODEL;
+  const currentFiles = readTargetFileContents(rootDir, context.issue.body);
   const prompt = buildPrompt(context, currentFiles);
 
   let result;
@@ -257,7 +214,37 @@ async function runOpenAIBackend(rootDir, context) {
   };
 }
 
+// Free-form markdown generation (planner handoffs, review notes). Returns
+// { ok, text, command } — no edits are produced or applied.
+async function runOpenAIGeneration(prompt, options = {}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return {
+      ok: false,
+      state: "blocked",
+      summary: "OPENAI_API_KEY is not set. Export it and retry.",
+      command: null,
+    };
+  }
+
+  const model = options.model || process.env.AGENTIC_MODEL || DEFAULT_MODEL;
+
+  try {
+    const text = await callOpenAI(prompt, apiKey, model, "text");
+    return { ok: true, text, command: `openai-api (${model})` };
+  } catch (error) {
+    return {
+      ok: false,
+      state: "failed",
+      summary: error instanceof Error ? error.message : String(error),
+      command: `openai-api (${model})`,
+    };
+  }
+}
+
 module.exports = {
   runOpenAIBackend,
+  runOpenAIGeneration,
   buildPrompt,
+  DEFAULT_MODEL,
 };

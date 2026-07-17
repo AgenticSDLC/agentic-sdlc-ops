@@ -2,6 +2,14 @@
 
 Use this checklist to bring the workflow kit into a target repository.
 
+## 0. GitHub Settings Prerequisites
+
+Complete `templates/SETUP-PREREQS.md` (installed to `docs/operations/SETUP-PREREQS.md`) before publishing the first issue. In short:
+
+- Org-level Actions permissions: "Read and write" + "Allow GitHub Actions to create and approve pull requests" — without this the draft PR bootstrapper cannot create PRs.
+- `WORKFLOW_TOKEN` secret: a PAT for the readiness auto-transition. For org-owned repos a fine-grained token's Resource Owner must be the organization, not a personal account. Track the expiry date.
+- Delete GitHub's 9 default labels (`bug`, `documentation`, …) before creating the catalog — `agentic-sdlc doctor` warns while they remain.
+
 ## 1. Install The Baseline Artifacts
 
 Copy into the target repository:
@@ -40,7 +48,7 @@ Create the repository's local adapter and fill in:
 
 ## 3. Create Labels
 
-Add the lifecycle labels and any required supporting labels from the repository's chosen operating model.
+Add the lifecycle labels and any required supporting labels from the repository's chosen operating model. Every task issue needs a topology label and at least one `agent-*` routing label at publish time; hold back `ready-for-build` on issues with upstream dependencies (`issue publish --state none`).
 
 ## 4. Map Automation
 

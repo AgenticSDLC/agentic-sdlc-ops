@@ -32,11 +32,15 @@ function uniqueLabels(labels) {
 
 function getDefaultIssueLabels(config, options) {
   const lifecycle = options.state || "ready-for-build";
-  const topology =
-    options.topology === "split" || config.topology === "split"
-      ? "topology:split"
-      : "topology:combined";
-  return [lifecycle, topology, "agent-builder", "frontend"];
+  const isSplit = options.topology === "split" || config.topology === "split";
+  const topology = isSplit ? "topology:split" : "topology:combined";
+  // Split routes to the planner first; combined goes straight to the builder.
+  const roleLabel = isSplit ? "agent-planner" : "agent-builder";
+  // `--state none` publishes without a lifecycle label — for issues with
+  // upstream dependencies that must not enter ready-for-build yet.
+  return lifecycle === "none"
+    ? [topology, roleLabel]
+    : [lifecycle, topology, roleLabel];
 }
 
 function printPublishResult(details, options = {}) {
@@ -54,9 +58,14 @@ function printPublishResult(details, options = {}) {
   printPathList("Labels", details.labels);
 
   if (includeFooter) {
+    const isSplit = (details.labels || []).includes("topology:split");
+    const runtimeName = isSplit ? "split" : "combined";
+    const outcome = isSplit
+      ? "This runs the planner first; the builder starts only after the visible handoff exists."
+      : "This will implement, verify, and advance the issue to in-review.";
     const nextStep = details.issueNumber
-      ? `Next run: agentic-sdlc runtime combined --issue ${details.issueNumber}. This will implement, verify, and advance the issue to in-review.`
-      : "Next run: agentic-sdlc runtime combined --issue <issue-number>. This will implement, verify, and advance the issue to in-review.";
+      ? `Next run: agentic-sdlc runtime ${runtimeName} --issue ${details.issueNumber}. ${outcome}`
+      : `Next run: agentic-sdlc runtime ${runtimeName} --issue <issue-number>. ${outcome}`;
     printFooter(nextStep);
   }
 }
@@ -83,9 +92,9 @@ async function handleIssuePublish(args) {
       ? uniqueLabels(extraLabels)
       : uniqueLabels([...getDefaultIssueLabels(config, args), ...extraLabels]);
 
-  if (args.state && !LIFECYCLE_STATE_SET.has(args.state)) {
+  if (args.state && args.state !== "none" && !LIFECYCLE_STATE_SET.has(args.state)) {
     throw new Error(
-      `Unsupported lifecycle state \`${args.state}\`. Use one of: ${LIFECYCLE_STATES.join(", ")}.`,
+      `Unsupported lifecycle state \`${args.state}\`. Use one of: ${LIFECYCLE_STATES.join(", ")}, or \`none\` to publish without a lifecycle label.`,
     );
   }
 

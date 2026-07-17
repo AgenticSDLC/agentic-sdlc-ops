@@ -8,14 +8,24 @@
 | 2 | Create the GitHub Issue | Agent / Human |
 | 3 | Add topology and readiness labels | Agent / Human |
 | 4 | Wait for readiness validation to pass | Agent / Human |
-| 5 | Move issue to `in-progress` | Agent / Human |
+| 5 | Readiness validator auto-transitions the issue to `in-progress` | Automation |
 | 6 | Planner posts visible handoff | Planner |
 | 7 | Builder implements from handoff | Builder |
-| 8 | Builder verifies and pushes | Builder |
-| 9 | Verifier reports pass or blocker (optional) | Verifier |
+| 8 | Builder pushes; CI verifies | Builder / CI |
+| 9 | Verifier audits CI results, reports pass or blocker (optional) | Verifier |
 | 10 | PR review and closeout | Human |
 
 The chain is linear. Each step depends on the previous one completing. If a step does not produce its expected output, the sequence stops — it does not fall through to the next step.
+
+**Verification is owned by CI, not the builder.** The builder's job ends at `git push`. The only valid completion signal is a green check on the PR from an automated process the builder did not run and cannot control. Agents submit work for verification; they do not conduct it.
+
+## Reference Executors
+
+The split contract is provider-neutral: labels, the visible comment markers, and the CI policy gates. Any executor that reads the issue and posts the markers can play a role. Three reference executors exist:
+
+1. **Claude Code subagents** — `.claude/agents/planner.md`, `builder.md`, `verifier.md` (installed by the overlay). Each role runs with its own model and ends by posting its marker comment via `gh`. This is the recommended interactive path.
+2. **`agentic-sdlc runtime split`** — scripted execution via the CLI using the configured agent backend (OpenAI or Anthropic API). Auto-detects the next role from the marker trail; `--role` forces a specific phase.
+3. **Any other agent session (e.g. Codex) or a human** — follow this runbook directly and post the markers via `gh`. The CI gates cannot tell the difference, by design.
 
 ## When To Use
 
@@ -83,20 +93,21 @@ sleep 10 && gh issue view <issue-id> \
 
 Expected result:
 - Comment body contains `Issue Readiness Check: Passed`
-- `ready-for-build` is present
 - `needs-details` is not present
 
 If validation fails, fix the reported issues and re-apply `ready-for-build`.
 
-## 5. Start Execution
+## 5. Automation Starts Execution
 
-Only after readiness passes:
+Do **not** move the issue to `in-progress` manually. When readiness passes, the readiness validator itself removes `ready-for-build` and adds `in-progress` (this is the auto-transition `WORKFLOW_TOKEN` exists for — see `docs/operations/SETUP-PREREQS.md`).
+
+Confirm the transition happened:
 
 ```bash
-gh issue edit <issue-id> \
-  --remove-label ready-for-build \
-  --add-label in-progress
+gh issue view <issue-id> --json labels --jq '[.labels[].name]'
 ```
+
+Expected: `in-progress` present, `ready-for-build` absent. If the issue is stuck in `ready-for-build` with a passing readiness comment, the auto-transition failed — check the validator run logs and the `WORKFLOW_TOKEN` secret rather than swapping the labels by hand.
 
 For `topology:split`, this transition starts the planner phase. The builder does not begin until the visible planner handoff exists.
 
@@ -107,6 +118,7 @@ The planner leaves a visible handoff artifact on the issue before any code is wr
 The planner handoff must include:
 - Chosen approach
 - Exact files or surfaces expected to change
+- Prior art & reuse: what existing utilities, components, or patterns were searched for (start from the adapter's Canonical Utilities / Reuse Map); for each hit, reuse it or justify concretely why it does not fit. The builder is bound by these decisions — this section is required, and a handoff without it does not authorize the builder.
 - Acceptance-criteria mapping
 - Confirmation that the work stays within the issue contract
 
@@ -141,22 +153,11 @@ Builder rules:
 - Keep the change PR-sized
 - Once a PR exists, use the PR as the primary steering surface
 
-## 8. Builder Verification
+## 8. Builder Push — CI Verifies
 
-Run the project's required verification commands (see your project adapter):
+While implementing, the builder may run the project's lint/build/test locally as a fast feedback loop. Local results are development feedback, not verification evidence — reporting local output as proof of correctness is self-certification and is not permitted.
 
-```bash
-# Examples — adapt to your project
-<lint command>
-<build command>
-<test command>
-```
-
-For user-visible changes, also run the E2E smoke lane and produce evidence.
-
-Acceptance criteria gate: before pushing, read every acceptance criterion from the issue and confirm each is satisfied in the running application — not assumed from a passing build.
-
-Push after verification:
+The builder's job ends at push:
 
 ```bash
 git add <files>
@@ -164,19 +165,24 @@ git commit -m "feat(issue-<id>): <short description>"
 git push origin "issue-<issue-id>-<slug>"
 ```
 
-The first push with content triggers the draft PR bootstrapper. Later pushes update the same PR.
+The first push with content triggers the draft PR bootstrapper. Later pushes update the same PR. CI then runs the repository-defined verification (lint, build, tests, E2E lanes) against the pushed head. Work is complete when repository-defined verification succeeds in CI — not when code is generated, and not when the builder believes it works.
+
+If CI fails, the builder fixes and pushes again. The builder never posts verification claims about its own output.
 
 ## 9. Optional Verifier Phase
 
-If `agent-verifier` is used, the verifier:
+If `agent-verifier` is used, the verifier audits — it does not rerun or re-implement:
 
-- Confirms required verification ran
-- Confirms evidence exists
-- Reports pass or blocker status on the issue or PR
+- Confirms required CI checks completed successfully for the PR's current head
+- Confirms required evidence exists (E2E output, screenshots for user-visible work)
+- Confirms the diff matches the planner handoff scope
+- Reports pass or blocker status on the PR
 
-Verifier completion markers (must appear in the raw comment body):
-- `<!-- split-verifier-pass -->` — verification passed; `policy-auto-merge` will trigger merge if configured
-- `<!-- split-verifier-blocker -->` — merge is blocked; `policy-verifier-gate` will report failure
+Verifier completion markers (must appear in the raw comment body, posted on the PR):
+- Pass — **two** markers, together: `<!-- split-verifier-pass -->` plus `<!-- split-verifier-sha: <head-sha> -->` binding the attestation to the audited commit. The policy gates reject a pass with no SHA line (unbound) or with a SHA older than the current head (stale) — a new commit always requires a fresh audit. Get the SHA with `gh pr view <pr> --json headRefOid --jq .headRefOid`.
+- `<!-- split-verifier-blocker -->` — merge is blocked; `policy-verifier-gate` will report failure. No SHA line needed.
+
+If `policy-auto-merge` is configured, a valid bound pass triggers merge once required checks are green. Repositories that want the attestation to come from an independent identity (not the builder's account) can set `VERIFIER_ALLOWLIST` in `scripts/merge-gate-policy.mjs` — see `docs/operations/SETUP-PREREQS.md`.
 
 The verifier role is separate from implementation. It confirms evidence exists; it does not add new implementation work.
 
@@ -199,8 +205,8 @@ If the diff review surfaces problems, post a PR comment describing each issue so
 ## Success Signals
 
 - Planner handoff exists and matches the issue scope
-- Builder implemented from the handoff without widening scope
-- Verification passes
+- Builder implemented from the handoff without widening scope, and stopped at push
+- CI verification passes for the PR's current head
 - Evidence exists for user-visible work
 - If `agent-verifier` is used, pass or blocker status is reported on the issue or PR
 - Draft PR exists or was updated from the issue branch

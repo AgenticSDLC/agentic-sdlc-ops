@@ -57,8 +57,18 @@ After reconciliation, publish:
 gh issue create \
   --title "[TASK] <task title>" \
   --body-file .agentic/issues/drafts/<task-file>.md \
-  --label "task,topology:combined,ready-for-build"
+  --label "task,topology:combined,agent-builder"
 ```
+
+Do not include `ready-for-build` at publish time for tasks with upstream dependencies. Add it separately once the dependency chain is clear:
+
+```bash
+gh issue edit <number> --add-label "ready-for-build"
+```
+
+**Readiness validation requires before `ready-for-build` passes:**
+- A topology label (`topology:combined` or `topology:split`)
+- An agent routing label (`agent-builder`, `agent-planner`, etc.) or an assignee
 
 Notes:
 - Local front matter (`title:`, `labels:`) is ignored by `gh issue create`

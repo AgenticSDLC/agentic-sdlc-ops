@@ -104,6 +104,21 @@ const STANDARD_LABELS = [
     description: "Routes implementation work to a builder agent",
   },
   {
+    name: "agent-planner",
+    color: "bfd4f2",
+    description: "Routes planning work to a planner agent (split topology)",
+  },
+  {
+    name: "agent-verifier",
+    color: "d4c5f9",
+    description: "Routes verification auditing to a verifier agent (split topology)",
+  },
+  {
+    name: "merge:human-required",
+    color: "b60205",
+    description: "A human must review and merge; automation must not merge",
+  },
+  {
     name: "frontend",
     color: "fbca04",
     description: "Frontend or user-visible work",

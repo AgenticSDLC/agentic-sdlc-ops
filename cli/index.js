@@ -6,6 +6,7 @@ const { handleDoctor } = require("./src/commands/doctor");
 const { handleIssuePublish } = require("./src/commands/issue-publish");
 const { handleIssueTransition } = require("./src/commands/issue-transition");
 const { handleRuntimeCombined } = require("./src/commands/runtime-combined");
+const { handleRuntimeSplit } = require("./src/commands/runtime-split");
 const { handleIssueList } = require("./src/commands/issue-list");
 
 async function loadChalk() {
@@ -76,6 +77,14 @@ Examples:
       .option("--init-git", "Initialize git automatically when missing")
       .option("--seed-issue", "Generate the pilot issue draft")
       .option("--no-seed-issue", "Skip pilot issue generation")
+      .option(
+        "--diff",
+        "Report-only converge check: list created/updated/drifted files and print drift diffs without writing",
+      )
+      .option(
+        "--force",
+        "Overwrite drifted overlay-managed files so they converge to canon",
+      )
       .action(async (options) => {
         console.log(banner);
         await handleInit(options);
@@ -105,7 +114,11 @@ Examples:
         "Create a GitHub issue from a local spec and apply initial labels",
       )
       .requiredOption("--spec <name-or-path>", "Spec file name or path")
-      .option("--state <label>", "Initial lifecycle label", "ready-for-build")
+      .option(
+        "--state <label>",
+        "Initial lifecycle label, or `none` for issues with upstream dependencies (add ready-for-build later)",
+        "ready-for-build",
+      )
       .option("--topology <mode>", "Topology label override: combined or split")
       .option(
         "--label <name>",
@@ -178,6 +191,31 @@ Examples:
       .action(async (options) => {
         console.log(banner);
         await handleRuntimeCombined(options);
+      }),
+  );
+  applyCommonOptions(
+    runtime
+      .command("split")
+      .description(
+        "Run the split-path runtime for a `topology:split` issue (planner → builder → verifier, with visible handoff markers; CI owns verification)",
+      )
+      .requiredOption("--issue <number>", "Issue number")
+      .option(
+        "--role <role>",
+        "Force a specific role: planner, builder, or verifier (default: auto-detect from issue markers)",
+      )
+      .option("--base <branch>", "Explicit pull request base branch")
+      .option(
+        "--backend <name>",
+        "Agent backend override: openai-api or anthropic-api",
+      )
+      .option(
+        "--finalize",
+        "Finalize a merged linked PR by transitioning the issue to done and closing it",
+      )
+      .action(async (options) => {
+        console.log(banner);
+        await handleRuntimeSplit(options);
       }),
   );
 

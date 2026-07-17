@@ -91,6 +91,28 @@ Supporting labels:
 
 {{verification_commands}}
 
+## Canonical Utilities (Reuse Map)
+
+The curated map of where established capabilities live. Agents must check
+this map and search the codebase before creating any new helper, utility, or
+component — reuse the canonical implementation, or justify the divergence in
+the PR's Prior Art & Reuse section.
+
+Fill in and maintain for this repository (examples):
+
+- dates/formatting → `<path>`
+- API client / fetch wrappers → `<path>`
+- shared UI components → `<path>`
+- validation / schemas → `<path>`
+- test fixtures & helpers → `<path>`
+
+Deprecated patterns (do not use — encode as lint rules when possible):
+
+- `<old pattern>` → use `<current pattern>` instead
+
+Keep this map small and current. Every reuse failure caught in review should
+either add an entry here or a lint rule — not just a one-off fix.
+
 ## Scope Rules
 
 - `Target Files` should use concrete file or directory paths when possible

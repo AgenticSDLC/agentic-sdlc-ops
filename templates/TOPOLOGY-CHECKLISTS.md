@@ -22,7 +22,7 @@ Use these short checklists alongside:
 - [ ] Issue is ready to receive `ready-for-build`
 - [ ] Topology label for the intended execution path has been added (`topology:combined` or `topology:split`)
 - [ ] Readiness validation posts a passing comment
-- [ ] `ready-for-build` remains on the issue
+- [ ] The validator auto-transitioned the issue: `ready-for-build` removed, `in-progress` added — do not swap these labels manually
 - [ ] `needs-details` is not present
 
 ## Builder Start Checklist
@@ -41,23 +41,24 @@ Use these short checklists alongside:
 - [ ] Planner handoff includes `<!-- split-planner-complete -->` in the raw comment body
 - [ ] Planner handoff includes chosen approach
 - [ ] Planner handoff lists exact files or surfaces expected to change
+- [ ] Planner handoff includes a Prior Art & Reuse section: existing equivalents searched for, each reused or concretely ruled out
 - [ ] Planner handoff maps the planned work to the issue acceptance criteria
 - [ ] Planner handoff confirms the work stays within issue scope
 - [ ] Builder has confirmed the visible handoff exists before implementing
 
-## Verification Checklist
+## Verification Checklist (CI-owned)
 
-- [ ] Lint passes
-- [ ] Build succeeds
-- [ ] Task-relevant automated tests pass
-- [ ] User-visible work includes E2E smoke coverage
-- [ ] User-visible work produces E2E evidence artifacts
-- [ ] PR or issue notes record the verification performed
+- [ ] The change has been pushed — the builder's job ends at push
+- [ ] CI ran the repository-defined verification (lint, build, tests) against the pushed head
+- [ ] Required CI checks are green for the PR's CURRENT head SHA
+- [ ] User-visible work includes E2E smoke coverage, written by the agent and run by CI
+- [ ] User-visible work produces E2E evidence artifacts from CI
+- [ ] No agent posted local command output as verification evidence — local runs are development feedback only
 
 ## Acceptance Criteria Gate
 
 - [ ] Every acceptance criterion from the issue has been read
-- [ ] Each criterion is demonstrably satisfied in the running application — not assumed from a passing build
+- [ ] Each criterion is covered by the diff and by CI-run checks or evidence — not assumed from a passing build, and not self-certified by the builder
 - [ ] No criterion has been silently skipped
 - [ ] If a criterion cannot be satisfied within scope: stop and report the blocker
 
@@ -72,9 +73,11 @@ Use these short checklists alongside:
 ## Verifier Checklist
 
 - [ ] Decided whether `agent-verifier` is warranted for this task
-- [ ] Required verification commands actually ran
+- [ ] Required CI checks completed successfully for the PR's current head — the verifier audits CI, it does not rerun the work
 - [ ] Required evidence artifacts exist
-- [ ] Pass or blocker status reported in the issue or PR with `<!-- split-verifier-pass -->` or `<!-- split-verifier-blocker -->`
+- [ ] PR diff matches the issue Target Files and the planner handoff scope
+- [ ] Reuse audit performed: every added function/helper/component searched against the codebase and the adapter's Reuse Map; duplicates of existing implementations are blockers unless justified in the handoff or PR
+- [ ] Pass or blocker status reported on the PR with `<!-- split-verifier-pass -->` or `<!-- split-verifier-blocker -->`
 - [ ] Verification reporting kept separate from implementation scope
 
 ## Pause And Escalation Checklist

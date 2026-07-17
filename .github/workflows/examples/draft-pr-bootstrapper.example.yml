@@ -1,5 +1,12 @@
 name: Draft PR Bootstrapper
 
+# PREREQUISITE (org-owned repos): GitHub Actions must be allowed to create
+# PRs, or this workflow fails with "GitHub Actions is not permitted to
+# create or approve pull requests." At <org> → Settings → Actions → General:
+# set Workflow permissions to "Read and write" AND enable "Allow GitHub
+# Actions to create and approve pull requests". Repo-level settings cannot
+# exceed the org ceiling. See docs/operations/SETUP-PREREQS.md.
+
 run-name: >-
     Draft PR Bootstrapper /
     ${{ github.event_name }} /
@@ -197,7 +204,57 @@ jobs:
                       const issueTitle = `${{ steps.issue.outputs.title }}`;
                       const baseBranch = process.env.EXECUTION_BASE_BRANCH;
                       const title = `feat(issue-${issueNumber}): ${issueTitle}`;
-                      const body = `Closes #${issueNumber}\n\nDraft PR automatically created after the issue branch had commits ahead of \`${baseBranch}\`.\n\n_Context: issue #${issueNumber} — '${issueTitle}' / branch '${branch}' / base '${baseBranch}'_`;
+                      // Fetch issue body and extract sections for the PR
+                      const issue = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+                      const issueBody = issue.data.body || '';
+
+                      function extractSection(body, heading) {
+                        const pattern = new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n---\\s*\\n|\\n## |$)`);
+                        const match = body.match(pattern);
+                        return match ? match[1].trim() : null;
+                      }
+
+                      const acceptanceCriteria = extractSection(issueBody, 'Acceptance Criteria');
+                      const targetFiles = extractSection(issueBody, 'Target Files');
+
+                      const lines = [
+                        `Closes #${issueNumber}`,
+                        '',
+                        `Draft PR automatically created after the issue branch had commits ahead of \`${baseBranch}\`.`,
+                        '',
+                        `_Context: issue #${issueNumber} — '${issueTitle}' / branch '${branch}' / base '${baseBranch}'_`,
+                        '',
+                        '---',
+                        '',
+                        '## Acceptance Criteria',
+                        '',
+                        acceptanceCriteria || '_Copy from the GitHub Issue before marking ready for review._',
+                        '',
+                        '---',
+                        '',
+                        '## Verification',
+                        '',
+                        '_Fill in before marking ready for review._',
+                        '',
+                        '---',
+                        '',
+                        '## Prior Art & Reuse',
+                        '',
+                        '- No new exports in this PR, or:',
+                        '-',
+                        '',
+                        '---',
+                        '',
+                        '## Risks / Follow-Up',
+                        '',
+                        '_Fill in before marking ready for review._',
+                      ];
+
+                      if (targetFiles) {
+                        lines.push('', '---', '', '## Target Files', '', targetFiles);
+                      }
+
+                      const body = lines.join('\n');
 
                       const pr = await github.rest.pulls.create({
                         owner,

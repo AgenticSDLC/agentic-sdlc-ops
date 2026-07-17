@@ -1,47 +1,22 @@
 const { extractMarkdownSections } = require("../policy");
+const { getFrameworkHints, readTargetFileContents } = require("./shared");
 
 const ANTHROPIC_API_BASE = "https://api.anthropic.com/v1";
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_MODEL = "claude-sonnet-5";
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 2000;
 const HEADERS_TIMEOUT_MS = 120000;
 
-function getFrameworkHints(config) {
-  const preset = (config && config.stackPreset) || "";
-  if (preset.startsWith("nextjs")) {
-    return [
-      "## Framework: Next.js",
-      "- Use `import Link from 'next/link'` for internal navigation. Do NOT use raw `<a>` tags for internal routes.",
-      "- Use `import Image from 'next/image'` instead of `<img>` tags.",
-      "- App Router files live in `app/`. Pages are `page.tsx`, layouts are `layout.tsx`.",
-      "- Client components must have `'use client'` at the top. Server components are the default.",
-      "- Do not import from `next/router` — use `next/navigation` for App Router.",
-    ];
-  }
-  if (preset.startsWith("react-vite")) {
-    return [
-      "## Framework: React + Vite",
-      "- Use `react-router-dom` for routing if present.",
-      "- Entry point is typically `src/main.tsx`.",
-    ];
-  }
-  if (preset.startsWith("remix")) {
-    return [
-      "## Framework: Remix",
-      "- Use `<Link>` from `@remix-run/react` for navigation.",
-      "- Routes live in `app/routes/`.",
-    ];
-  }
-  return [];
-}
-
-function buildPrompt(context) {
+function buildPrompt(context, currentFiles) {
   const sections = extractMarkdownSections(context.issue.body || "");
   const requirements = sections.get("requirements") || "(none)";
   const acceptance = sections.get("acceptance criteria") || "(none)";
   const targetFiles = sections.get("target files") || sections.get("target subsystem") || "(none)";
 
   const frameworkHints = getFrameworkHints(context.config);
+  const fileBlocks = (currentFiles || []).map(
+    (f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``
+  );
 
   return [
     "You are a coding agent implementing a narrow, scoped task.",
@@ -51,6 +26,7 @@ function buildPrompt(context) {
     `Issue: #${context.issue.number} ${context.issue.title}`,
     "",
     ...(frameworkHints.length ? [...frameworkHints, ""] : []),
+    ...(fileBlocks.length ? ["## Current File Contents", "", ...fileBlocks, ""] : []),
     "## Requirements",
     requirements,
     "",
@@ -68,6 +44,7 @@ function buildPrompt(context) {
     "- Do not broaden scope beyond the issue contract.",
     "- Do not use placeholder comments like '// ... unchanged ...' — output the full file.",
     "- Preserve existing formatting and project style.",
+    "- NEVER remove existing functionality, components, or elements unless the issue explicitly requires it.",
     "",
     "## Output",
     "Respond with ONLY a JSON object matching this schema (no markdown fences, no explanation):",
@@ -102,7 +79,7 @@ function extractJson(text) {
   }
 }
 
-async function callAnthropic(prompt, apiKey, model) {
+async function callAnthropic(prompt, apiKey, model, expect = "json") {
   let lastError = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -140,7 +117,7 @@ async function callAnthropic(prompt, apiKey, model) {
         throw new Error("Anthropic API did not return a text block");
       }
 
-      return extractJson(textBlock.text);
+      return expect === "text" ? textBlock.text : extractJson(textBlock.text);
     } catch (error) {
       lastError = error;
       if (attempt < MAX_ATTEMPTS && isTransientFailure(error)) {
@@ -169,8 +146,9 @@ async function runAnthropicBackend(rootDir, context) {
     };
   }
 
-  const model = process.env.AGENTIC_MODEL || DEFAULT_MODEL;
-  const prompt = buildPrompt(context);
+  const model = context.model || process.env.AGENTIC_MODEL || DEFAULT_MODEL;
+  const currentFiles = readTargetFileContents(rootDir, context.issue.body);
+  const prompt = buildPrompt(context, currentFiles);
 
   let result;
   try {
@@ -213,7 +191,37 @@ async function runAnthropicBackend(rootDir, context) {
   };
 }
 
+// Free-form markdown generation (planner handoffs, review notes). Returns
+// { ok, text, command } — no edits are produced or applied.
+async function runAnthropicGeneration(prompt, options = {}) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      ok: false,
+      state: "blocked",
+      summary: "ANTHROPIC_API_KEY is not set. Export it and retry.",
+      command: null,
+    };
+  }
+
+  const model = options.model || process.env.AGENTIC_MODEL || DEFAULT_MODEL;
+
+  try {
+    const text = await callAnthropic(prompt, apiKey, model, "text");
+    return { ok: true, text, command: `anthropic-api (${model})` };
+  } catch (error) {
+    return {
+      ok: false,
+      state: "failed",
+      summary: error instanceof Error ? error.message : String(error),
+      command: `anthropic-api (${model})`,
+    };
+  }
+}
+
 module.exports = {
   runAnthropicBackend,
+  runAnthropicGeneration,
   buildPrompt,
+  DEFAULT_MODEL,
 };

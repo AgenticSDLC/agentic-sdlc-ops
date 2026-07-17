@@ -22,6 +22,7 @@
   },
   "scripts": {
     "cli:help": "node cli/index.js --help",
+    "test": "node --test \"cli/src/**/*.test.js\" \"templates/scripts/*.test.mjs\"",
     "prepublishOnly": "node cli/index.js --help"
   },
   "keywords": [

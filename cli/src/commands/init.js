@@ -23,6 +23,41 @@ const {
 const { confirm } = require("../prompt");
 const { detectAvailableBackends, getAllBackends } = require("../lib/agent-backends");
 
+function printDriftDiffs(rootDir, summary) {
+  const { execFileSync } = require("child_process");
+  const os = require("os");
+
+  for (const relativePath of summary.drifted) {
+    const expected = summary.driftDetails && summary.driftDetails[relativePath];
+    if (typeof expected !== "string") {
+      continue;
+    }
+
+    console.log(`\n--- drift: ${relativePath} (current → canon) ---`);
+    const canonFile = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), "agentic-canon-")),
+      path.basename(relativePath),
+    );
+    try {
+      fs.writeFileSync(canonFile, expected, "utf8");
+      let output;
+      try {
+        output = execFileSync(
+          "diff",
+          ["-u", path.join(rootDir, relativePath), canonFile],
+          { encoding: "utf8" },
+        );
+      } catch (error) {
+        // diff exits 1 when files differ; the diff text is on stdout.
+        output = error && error.stdout ? String(error.stdout) : "";
+      }
+      console.log(output.trim() || "(unable to compute diff)");
+    } finally {
+      fs.rmSync(path.dirname(canonFile), { recursive: true, force: true });
+    }
+  }
+}
+
 const PLAYWRIGHT_CONFIG_TEMPLATE = `import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
@@ -161,11 +196,29 @@ async function handleInit(args) {
     `${config.stackPreset}, ${config.installMode}, ${config.appShape}`,
   );
 
-  const summary = generateOverlay(config, rootDir);
-  printSection("Generated Overlay");
-  printPathList("Created", summary.created);
-  printPathList("Updated", summary.updated);
-  printPathList("Skipped", summary.skipped);
+  const summary = generateOverlay(config, rootDir, {
+    force: Boolean(args.force),
+    diffOnly: Boolean(args.diff),
+  });
+  printSection(args.diff ? "Overlay Diff (report only — nothing written)" : "Generated Overlay");
+  printPathList(args.diff ? "Would Create" : "Created", summary.created);
+  printPathList(args.diff ? "Would Update" : "Updated", summary.updated);
+  printPathList("Skipped (identical or project-owned)", summary.skipped);
+
+  if (summary.drifted && summary.drifted.length) {
+    printPathList("Drifted (differ from overlay canon)", summary.drifted);
+    if (args.diff) {
+      printDriftDiffs(rootDir, summary);
+    }
+    printKeyValue(
+      "Drift Remediation",
+      "Rerun with --force to converge drifted files to canon, or --diff to inspect the differences first.",
+    );
+  }
+
+  if (args.diff) {
+    printKeyValue("Diff Mode", "no files were written; rerun without --diff to apply");
+  }
 
   let labelSync = null;
   if (prereq.state !== "ready-local-only") {
@@ -210,6 +263,10 @@ async function handleInit(args) {
       config.execution = config.execution || {};
       config.execution.agentBackend = chosen.name;
       printKeyValue("Selected", chosen.label);
+      printKeyValue(
+        "To persist this choice",
+        `export AGENTIC_AGENT_BACKEND=${chosen.name} (runtime auto-detects when only one API key is set)`,
+      );
     } else {
       printSection("Agent Backend");
       printKeyValue("Status", "No agent API key detected");

@@ -37,7 +37,7 @@ for (const section of [
   }
 }
 
-if (!/(?:Closes|Implements:.*?)#\d+/i.test(body)) {
+if (!/(?:Closes|Implements:)\s*#\d+/i.test(body)) {
   errors.push("PR body must link an issue using `Closes #<number>` or `Implements: #<number>`.");
 }
 

@@ -38,11 +38,17 @@ async function handleIssueTransition(args) {
     args.state === "in-review" || args.state === "done"
       ? controlPlane.capabilities.getLinkedPullRequests(rootDir, args.issue).pullRequests
       : [];
+  // in-review on a split issue additionally requires the visible planner
+  // handoff marker, so the policy needs the issue comments to check it.
+  const issueComments =
+    args.state === "in-review"
+      ? controlPlane.capabilities.listIssueComments(rootDir, args.issue).comments
+      : [];
   const policyDecision = validateLifecycleTransition(
     current.issue,
     args.state,
     config,
-    { linkedPullRequests }
+    { linkedPullRequests, issueComments }
   );
   if (!policyDecision.ok) {
     throw new Error(

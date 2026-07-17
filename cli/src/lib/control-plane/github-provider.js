@@ -205,6 +205,20 @@ function syncLabels(rootDir, labels) {
   }
 }
 
+// GitHub's out-of-the-box labels on a new repository. They conflict with the
+// overlay label catalog and should be deleted during setup (SETUP-PREREQS.md).
+const GITHUB_DEFAULT_LABELS = [
+  "bug",
+  "documentation",
+  "duplicate",
+  "enhancement",
+  "good first issue",
+  "help wanted",
+  "invalid",
+  "question",
+  "wontfix",
+];
+
 function checkLabels(rootDir, labels) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
@@ -212,6 +226,7 @@ function checkLabels(rootDir, labels) {
       status: "skipped",
       repoSlug: null,
       missing: [],
+      defaultLeftovers: [],
       reason: "No GitHub origin remote detected.",
     };
   }
@@ -221,10 +236,14 @@ function checkLabels(rootDir, labels) {
     const missing = labels
       .map((label) => label.name)
       .filter((name) => !existing.has(name));
+    const defaultLeftovers = GITHUB_DEFAULT_LABELS.filter((name) =>
+      existing.has(name),
+    );
     return {
       status: "ok",
       repoSlug,
       missing,
+      defaultLeftovers,
     };
   } catch (error) {
     const message =
@@ -235,6 +254,7 @@ function checkLabels(rootDir, labels) {
       status: "unavailable",
       repoSlug,
       missing: [],
+      defaultLeftovers: [],
       reason: message,
       remediation: [
         "Confirm `gh auth status` succeeds for the target GitHub account.",
@@ -559,7 +579,7 @@ function getPullRequestForBranch(rootDir, branchName) {
       "--state",
       "open",
       "--json",
-      "number,title,url,isDraft,body,headRefName,baseRefName",
+      "number,title,url,isDraft,body,headRefName,baseRefName,headRefOid",
     ],
     rootDir,
   );
@@ -703,6 +723,37 @@ function updatePullRequest(rootDir, prNumber, options) {
   }
 }
 
+function getPullRequestChecks(rootDir, prNumber) {
+  const repoSlug = getRepoSlug(rootDir);
+  if (!repoSlug) {
+    throw new Error(
+      "No GitHub origin remote detected. Connect the repository before reading pull request checks.",
+    );
+  }
+
+  let stdout;
+  try {
+    stdout = execFileSync(
+      "gh",
+      ["pr", "checks", String(prNumber), "--repo", repoSlug, "--json", "name,state,bucket,link"],
+      { cwd: rootDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (error) {
+    // `gh pr checks` exits non-zero when any check is failing or pending;
+    // the JSON payload is still written to stdout.
+    stdout = error && error.stdout ? String(error.stdout) : "";
+    if (!stdout.trim()) {
+      throw error;
+    }
+  }
+
+  const checks = JSON.parse(stdout);
+  return {
+    repoSlug,
+    checks: Array.isArray(checks) ? checks : [],
+  };
+}
+
 function markPullRequestReady(rootDir, prNumber) {
   const repoSlug = getRepoSlug(rootDir);
   if (!repoSlug) {
@@ -776,6 +827,7 @@ module.exports = {
     createIssue,
     addIssueComment,
     listIssueComments,
+    getPullRequestChecks,
     markPullRequestReady,
     mergePullRequest,
     getPullRequestForBranch,

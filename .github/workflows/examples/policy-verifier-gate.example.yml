@@ -35,10 +35,17 @@ jobs:
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout policy module
+        uses: actions/checkout@v4
+
       - name: Evaluate verifier gate
         uses: actions/github-script@v7
         with:
           script: |
+            const { evaluateVerifierAttestation } = await import(
+              `${process.env.GITHUB_WORKSPACE}/scripts/merge-gate-policy.mjs`
+            );
+
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             let prNumber, headSha, isDraft, branchRef, prTitle;
@@ -100,8 +107,16 @@ jobs:
             });
 
             const bodies = comments.map(c => c.body ?? '');
-            const hasPass = bodies.some(b => b.includes('<!-- split-verifier-pass -->'));
+            const SHA_LINE = /<!--\s*split-verifier-sha:\s*([0-9a-fA-F]{7,40})\s*-->/;
+            const verifierPasses = comments
+              .filter(c => (c.body ?? '').includes('<!-- split-verifier-pass -->'))
+              .map(c => ({
+                author: c.user?.login ?? '',
+                sha: (c.body.match(SHA_LINE)?.[1] ?? null),
+              }));
             const hasBlocker = bodies.some(b => b.includes('<!-- split-verifier-blocker -->'));
+
+            const attestation = evaluateVerifierAttestation({ verifierPasses, headSha });
 
             if (hasBlocker) {
               await postCheck('failure', 'Verifier blocker present', [
@@ -109,12 +124,18 @@ jobs:
                 '',
                 'Merge is blocked until the blocker is resolved and the verifier re-runs with a pass.',
               ].join('\n'));
-            } else if (!hasPass) {
-              await postCheck('failure', 'Awaiting verifier pass', [
-                'No `<!-- split-verifier-pass -->` marker found on this PR.',
+            } else if (!attestation.ok) {
+              const detail = {
+                'no-verifier-pass': 'No `<!-- split-verifier-pass -->` marker found on this PR.',
+                'verifier-pass-not-sha-bound': 'A pass marker exists but carries no `<!-- split-verifier-sha: <sha> -->` line — unbound attestations are not trusted.',
+                'verifier-pass-stale-sha': `A pass attestation exists but is bound to an older commit — the current head ${headSha.slice(0, 7)} has not been audited.`,
+                'verifier-not-authorized': 'A bound pass attestation exists but its author is not in VERIFIER_ALLOWLIST (scripts/merge-gate-policy.mjs).',
+              }[attestation.reason] ?? attestation.reason;
+              await postCheck('failure', 'Awaiting valid verifier attestation', [
+                detail,
                 '',
-                'Verification must complete successfully before this PR may be merged.',
+                'The verifier must audit the current head and post a pass comment containing both markers.',
               ].join('\n'));
             } else {
-              await postCheck('success', 'Verifier gate open', '`<!-- split-verifier-pass -->` confirmed. No active blockers. Safe to merge.');
+              await postCheck('success', 'Verifier gate open', `Verifier attestation bound to head ${headSha.slice(0, 7)} confirmed. No active blockers. Safe to merge.`);
             }

@@ -79,12 +79,17 @@ function writeRecommendedArtifact(summary, rootDir, targetRelativePath, sourceSe
   );
 }
 
-function generateOverlay(config, rootDir) {
+function generateOverlay(config, rootDir, options = {}) {
   const summary = {
     rootDir,
+    options: {
+      force: Boolean(options.force),
+      diffOnly: Boolean(options.diffOnly),
+    },
     created: [],
     skipped: [],
     updated: [],
+    drifted: [],
   };
 
   const projectAdapter = renderTemplate(
@@ -128,12 +133,15 @@ function generateOverlay(config, rootDir) {
   const agentsPath = path.join(rootDir, "AGENTS.md");
   const agentsTemplate = loadTemplate("templates", "AGENTS.md");
   if (!fs.existsSync(agentsPath)) {
-    writeManagedFile(agentsPath, agentsTemplate, summary);
+    writeManagedFile(
+      agentsPath,
+      wrapManagedBlock(AGENTS_BLOCK_START, AGENTS_BLOCK_END, agentsTemplate),
+      summary
+    );
   } else {
     const existingAgents = fs.readFileSync(agentsPath, "utf8");
-    if (hasMinimumAgentsContract(existingAgents)) {
-      summary.skipped.push(path.relative(summary.rootDir, agentsPath));
-    } else if (existingAgents.includes(AGENTS_BLOCK_START) && existingAgents.includes(AGENTS_BLOCK_END)) {
+    if (existingAgents.includes(AGENTS_BLOCK_START) && existingAgents.includes(AGENTS_BLOCK_END)) {
+      // Managed block present — converge it to canon (identical → skipped).
       const nextContents = replaceManagedBlock(
         existingAgents,
         AGENTS_BLOCK_START,
@@ -141,6 +149,9 @@ function generateOverlay(config, rootDir) {
         agentsTemplate
       );
       updateManagedFile(agentsPath, nextContents, summary);
+    } else if (hasMinimumAgentsContract(existingAgents)) {
+      // Project-owned AGENTS.md that already carries the contract — leave it.
+      summary.skipped.push(path.relative(summary.rootDir, agentsPath));
     } else {
       const merged = `${existingAgents.trimEnd()}\n\n${AGENTS_BLOCK_START}\n${agentsTemplate}\n${AGENTS_BLOCK_END}\n`;
       updateManagedFile(agentsPath, merged, summary);
@@ -265,6 +276,11 @@ function generateOverlay(config, rootDir) {
     },
     {
       enabled: true,
+      target: path.join("docs", "operations", "SETUP-PREREQS.md"),
+      source: ["templates", "SETUP-PREREQS.md"],
+    },
+    {
+      enabled: true,
       target: path.join("scripts", "validate-issue.js"),
       source: ["templates", "scripts", "validate-issue.js"],
     },
@@ -287,6 +303,31 @@ function generateOverlay(config, rootDir) {
       enabled: true,
       target: path.join("scripts", "git-clean-merged-pr-branches.sh"),
       source: ["templates", "scripts", "git-clean-merged-pr-branches.sh"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "merge-gate-policy.mjs"),
+      source: ["templates", "scripts", "merge-gate-policy.mjs"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "merge-gate-policy.test.mjs"),
+      source: ["templates", "scripts", "merge-gate-policy.test.mjs"],
+    },
+    {
+      enabled: true,
+      target: path.join(".claude", "agents", "planner.md"),
+      source: ["templates", "claude-agents", "planner.md"],
+    },
+    {
+      enabled: true,
+      target: path.join(".claude", "agents", "builder.md"),
+      source: ["templates", "claude-agents", "builder.md"],
+    },
+    {
+      enabled: true,
+      target: path.join(".claude", "agents", "verifier.md"),
+      source: ["templates", "claude-agents", "verifier.md"],
     },
     {
       enabled: config.workflowScaffolding === "recommended",
@@ -328,6 +369,11 @@ function generateOverlay(config, rootDir) {
       target: path.join(".github", "workflows", "tsconfig-change-guard.yml"),
       source: [".github", "workflows", "examples", "tsconfig-change-guard.example.yml"],
     },
+    {
+      enabled: config.workflowScaffolding === "recommended",
+      target: path.join(".github", "workflows", "reuse-guard.yml"),
+      source: [".github", "workflows", "examples", "reuse-guard.example.yml"],
+    },
   ];
 
   for (const artifact of recommendedArtifacts) {
@@ -337,8 +383,10 @@ function generateOverlay(config, rootDir) {
     writeRecommendedArtifact(summary, rootDir, artifact.target, artifact.source);
   }
 
-  ensureDirectory(path.join(rootDir, ".agentic", "issues", "drafts"));
-  ensureDirectory(path.join(rootDir, ".agentic", "issues", "archive"));
+  if (!summary.options.diffOnly) {
+    ensureDirectory(path.join(rootDir, ".agentic", "issues", "drafts"));
+    ensureDirectory(path.join(rootDir, ".agentic", "issues", "archive"));
+  }
 
   writeManagedFile(
     path.join(rootDir, ".agentic", "issues", "drafts", "README.md"),

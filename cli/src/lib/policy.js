@@ -8,6 +8,16 @@ const DEFAULT_REQUIRED_SECTIONS = [
 const DEFAULT_HOLD_LABELS = ["hold", "needs-human"];
 const DEFAULT_TOPOLOGY_LABELS = ["topology:combined", "topology:split"];
 
+// Visible split-topology handoff markers. These are the provider-neutral
+// contract between planner, builder, verifier, and the CI policy gates
+// (policy-verifier-gate / policy-auto-merge) — any executor that posts them
+// participates in the topology.
+const SPLIT_MARKERS = {
+  plannerComplete: "<!-- split-planner-complete -->",
+  verifierPass: "<!-- split-verifier-pass -->",
+  verifierBlocker: "<!-- split-verifier-blocker -->",
+};
+
 function normalizeHeadingName(value) {
   return String(value || "")
     .trim()
@@ -173,6 +183,49 @@ function evaluateReadiness(issue, config = {}) {
   };
 }
 
+// The reuse contract: a planner handoff that never looked for prior art does
+// not authorize the builder. Structural presence is machine-checked here;
+// content quality is the verifier's reuse audit.
+const HANDOFF_REUSE_SECTION = "### Prior Art & Reuse";
+
+// Split topology gate: the builder may not start (and the issue may not
+// advance past build) until a visible planner handoff exists on the issue.
+// Not applicable to combined topology. The planner itself runs after the
+// issue enters `in-progress`, so this is NOT part of the in-progress gate.
+function evaluateSplitBuildReadiness(issue, issueComments) {
+  const labels = (issue.labels || []).map((label) =>
+    typeof label === "string" ? label : label.name
+  );
+
+  if (!labels.includes("topology:split")) {
+    return { ok: true, applicable: false, findings: [] };
+  }
+
+  const bodies = (issueComments || [])
+    .map((comment) => comment?.body)
+    .filter((body) => typeof body === "string");
+  const handoffs = bodies.filter((body) =>
+    body.includes(SPLIT_MARKERS.plannerComplete)
+  );
+
+  const findings = [];
+  if (!handoffs.length) {
+    findings.push(
+      `\`topology:split\` requires a visible planner handoff comment containing \`${SPLIT_MARKERS.plannerComplete}\` on the issue before the builder may start.`
+    );
+  } else if (!handoffs[handoffs.length - 1].includes(HANDOFF_REUSE_SECTION)) {
+    findings.push(
+      `The planner handoff is missing its \`${HANDOFF_REUSE_SECTION}\` section. A handoff that never searched for existing implementations does not authorize the builder — re-run the planner.`
+    );
+  }
+
+  return {
+    ok: findings.length === 0,
+    applicable: true,
+    findings,
+  };
+}
+
 function validateLifecycleTransition(issue, nextState, config = {}, providerState = {}) {
   const currentState = getCurrentLifecycleState(issue);
   const findings = [];
@@ -222,9 +275,19 @@ function validateLifecycleTransition(issue, nextState, config = {}, providerStat
       providerState.linkedPullRequests,
       config
     );
+    const reviewFindings = [...review.findings];
+
+    const splitReadiness = evaluateSplitBuildReadiness(
+      issue,
+      providerState.issueComments
+    );
+    if (splitReadiness.applicable && !splitReadiness.ok) {
+      reviewFindings.push(...splitReadiness.findings);
+    }
+
     return {
-      ok: review.ok,
-      findings: review.findings,
+      ok: reviewFindings.length === 0,
+      findings: reviewFindings,
       currentState,
       review,
     };
@@ -251,7 +314,10 @@ module.exports = {
   DEFAULT_REQUIRED_SECTIONS,
   DEFAULT_HOLD_LABELS,
   DEFAULT_TOPOLOGY_LABELS,
+  HANDOFF_REUSE_SECTION,
+  SPLIT_MARKERS,
   evaluateReadiness,
+  evaluateSplitBuildReadiness,
   extractMarkdownSections,
   getCurrentLifecycleState,
   validateLifecycleTransition,

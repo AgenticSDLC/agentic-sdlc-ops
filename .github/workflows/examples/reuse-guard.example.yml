@@ -1,0 +1,167 @@
+name: Reuse Guard
+
+run-name: >-
+    Reuse Guard /
+    pr #${{ github.event.pull_request.number }}
+
+# Mechanical coherence checks — catches "implemented the same thing N ways"
+# and "new helper nobody justified" without any judgment call:
+#
+#   1. Duplication ratchet: copy-paste duplication (jscpd) must not INCREASE
+#      relative to the base branch. Existing duplication is tolerated;
+#      adding more fails.
+#   2. New-export tripwire: any newly added `export` requires a filled
+#      Prior Art & Reuse section in the PR body. The check does not judge
+#      the justification — the verifier role and human review do — it only
+#      refuses silent, unjustified additions.
+#
+# ADAPTER REQUIRED: set REUSE_GUARD_PATHS to the source directories that
+# should be scanned (space-separated, relative to repo root).
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+    contents: read
+    pull-requests: read
+
+env:
+    REUSE_GUARD_PATHS: "src"
+    # Percentage points of duplication increase tolerated (float).
+    REUSE_GUARD_TOLERANCE: "0.1"
+
+jobs:
+    duplication-ratchet:
+        name: Duplication must not increase
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout PR head
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Measure duplication on head and base
+              id: measure
+              run: |
+                  set -euo pipefail
+
+                  measure() {
+                    local label="$1"
+                    local out=".jscpd-${label}"
+                    local paths=()
+                    for p in $REUSE_GUARD_PATHS; do
+                      [ -d "$p" ] && paths+=("$p")
+                    done
+                    if [ ${#paths[@]} -eq 0 ]; then
+                      echo "0" > "${out}.pct"
+                      return
+                    fi
+                    npx --yes jscpd@latest --silent --min-tokens 50 \
+                      --reporters json --output "$out" "${paths[@]}" || true
+                    node -e "
+                      const fs = require('fs');
+                      let pct = 0;
+                      try {
+                        const r = JSON.parse(fs.readFileSync('${out}/jscpd-report.json', 'utf8'));
+                        pct = r.statistics?.total?.percentage ?? 0;
+                      } catch {}
+                      fs.writeFileSync('${out}.pct', String(pct));
+                    "
+                  }
+
+                  git checkout --quiet "${{ github.event.pull_request.head.sha }}"
+                  measure head
+
+                  git checkout --quiet "${{ github.event.pull_request.base.sha }}"
+                  measure base
+
+                  HEAD_PCT=$(cat .jscpd-head.pct)
+                  BASE_PCT=$(cat .jscpd-base.pct)
+                  echo "head=$HEAD_PCT" >> "$GITHUB_OUTPUT"
+                  echo "base=$BASE_PCT" >> "$GITHUB_OUTPUT"
+                  echo "[reuse-guard] duplication base=${BASE_PCT}% head=${HEAD_PCT}%"
+
+            - name: Enforce ratchet
+              run: |
+                  node -e "
+                    const head = parseFloat('${{ steps.measure.outputs.head }}');
+                    const base = parseFloat('${{ steps.measure.outputs.base }}');
+                    const tolerance = parseFloat(process.env.REUSE_GUARD_TOLERANCE);
+                    if (head > base + tolerance) {
+                      console.error(
+                        '[reuse-guard] duplication increased: ' + base + '% -> ' + head + '%. ' +
+                        'This PR adds copy-pasted code. Extract or reuse a shared implementation instead.'
+                      );
+                      process.exit(1);
+                    }
+                    console.log('[reuse-guard] duplication ratchet ok: ' + base + '% -> ' + head + '%');
+                  "
+
+    new-export-tripwire:
+        name: New exports require Prior Art & Reuse
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Detect new exports and check justification
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const { execSync } = require('child_process');
+
+                      const base = context.payload.pull_request.base.sha;
+                      const head = context.payload.pull_request.head.sha;
+                      const scanPaths = (process.env.REUSE_GUARD_PATHS ?? '').split(/\s+/).filter(Boolean);
+
+                      const diff = execSync(
+                        `git diff ${base}...${head} --unified=0 -- ${scanPaths.map(p => `'${p}'`).join(' ')}`,
+                        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+                      );
+
+                      // Added lines introducing a new exported symbol.
+                      const EXPORT_LINE = /^\+\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|const|let|class|interface|type|enum)\s+([A-Za-z0-9_$]+)/;
+                      const newExports = [];
+                      let currentFile = null;
+                      for (const line of diff.split('\n')) {
+                        const fileMatch = line.match(/^\+\+\+ b\/(.+)$/);
+                        if (fileMatch) { currentFile = fileMatch[1]; continue; }
+                        const exp = line.match(EXPORT_LINE);
+                        if (exp && currentFile) newExports.push(`${currentFile}: ${exp[1]}`);
+                      }
+
+                      if (!newExports.length) {
+                        core.info('[reuse-guard] no new exports — tripwire not applicable');
+                        return;
+                      }
+
+                      core.info(`[reuse-guard] new exports detected:\n  ${newExports.join('\n  ')}`);
+
+                      const body = context.payload.pull_request.body ?? '';
+                      const sectionMatch = body.match(/#{1,3} Prior Art & Reuse\s*\n([\s\S]*?)(?=\n#{1,3} |\n---|$)/);
+                      const sectionText = (sectionMatch?.[1] ?? '')
+                        .replace(/^Required when this PR adds.*$/gm, '')
+                        .replace(/^For each addition.*$/gm, '')
+                        .replace(/^or justify concretely.*$/gm, '')
+                        .replace(/^planner handoff.*$/gm, '')
+                        .replace(/^- No new exports in this PR, or:\s*$/gm, '')
+                        .replace(/^-\s*$/gm, '')
+                        .trim();
+
+                      if (!sectionText) {
+                        core.setFailed([
+                          `This PR adds ${newExports.length} new export(s) but the PR body's`,
+                          '"Prior Art & Reuse" section is empty. For each new export, name the',
+                          'existing equivalent you searched for and reused, or justify why',
+                          'nothing existing fit.',
+                          '',
+                          'New exports:',
+                          ...newExports.map(e => `  - ${e}`),
+                        ].join('\n'));
+                        return;
+                      }
+
+                      core.info('[reuse-guard] Prior Art & Reuse section is filled — routing judgment to the verifier/reviewer');

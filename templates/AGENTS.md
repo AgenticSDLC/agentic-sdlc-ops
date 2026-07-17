@@ -6,7 +6,7 @@
 4. If the issue has no `topology:*` label, you are in `topology:combined` — one executor, one PR, default local execution. Skip the Split Topology section below; it does not apply.
 5. Confirm the issue has the execution start label defined in the project adapter, and that the branch exists and is checked out locally. If not, stop and follow the stop-and-ask rules below.
 6. State a short preflight plan: chosen approach, files to touch, how each acceptance criterion will be met, confirmation this stays within declared scope. No human approval is needed to proceed if the plan is in-scope and no stop signal is present.
-7. Implement only what the issue requires. Do not expand scope (see **Ambiguity Resolution**).
+7. Implement only what the issue requires. Do not expand scope (see **Ambiguity Resolution**). Before creating any new helper, utility, or component, check the project adapter's Canonical Utilities (Reuse Map) and search the codebase for an existing equivalent — reuse it, or record why it does not fit in the PR's Prior Art & Reuse section. Duplicating an existing implementation is treated as a defect, not a style issue.
 8. Run the repository's verification commands locally before pushing. Local results are fast feedback — they are not verification evidence and do not constitute task completion. Fix any failures, then push. CI owns verification from that point. Your job ends at `git push`.
 
 Everything past this point is either detail behind these steps or guidance for less common situations. Treat any docs or sections explicitly required by the issue or project adapter as mandatory.
@@ -65,7 +65,16 @@ Agents may execute only when the execution start condition in the project adapte
 
 **Combined (default):** If the issue has no `topology:*` label, assume `topology:combined`. One executor handles implementation. CI handles verification. No role handoff is required.
 
-**Split:** If the issue has `topology:split`, a planner-to-builder handoff is expected. Role labels (`agent-planner`, `agent-builder`, `agent-verifier`, `agent-integrator`) are routing hints. See the repository's split topology runbook for the mechanics of handoff markers. CI verification is still the floor — split topology adds a human or agent review layer on top of it, it does not replace it.
+**Split:** If the issue has `topology:split`, work is divided across roles with visible handoffs. Role labels (`agent-planner`, `agent-builder`, `agent-verifier`, `agent-integrator`) are routing hints. CI verification is still the floor — split topology adds a review layer on top of it, it does not replace it.
+
+The split contract is three visible comment markers, and it is provider-neutral — CI gates read the markers, not the executor:
+
+- `<!-- split-planner-complete -->` — closes the planner's handoff comment on the issue. **The builder must not start until this marker exists.** Entering `in-progress` is not sufficient.
+- `<!-- split-verifier-pass -->` / `<!-- split-verifier-blocker -->` — the verifier's verdict, posted on the PR after auditing CI results. A pass must also carry `<!-- split-verifier-sha: <head-sha> -->` naming the exact commit audited — the gates reject unbound or stale attestations, so a new push always requires a fresh audit. `policy-auto-merge` and `policy-verifier-gate` act on these.
+
+Role boundaries: the planner produces the handoff and never implements. The builder implements only what the handoff covers and **ends at `git push`** — it submits work for verification, it does not conduct it. The verifier audits CI checks and evidence and never adds implementation.
+
+Any executor can play a role by following the runbook and posting the markers: Claude Code subagents (`.claude/agents/planner.md`, `builder.md`, `verifier.md`), the scripted CLI (`agentic-sdlc runtime split`), another agent session such as Codex reading this file, or a human. See the repository's split topology runbook for the full mechanics.
 
 ---
 

@@ -27,6 +27,12 @@ jobs:
           # would not reach any downstream workflow unless a PAT is used.
           # If WORKFLOW_TOKEN is not set, the transition still happens but
           # downstream workflows will not be triggered automatically.
+          #
+          # ORG-OWNED REPOS: a fine-grained token's Resource Owner must be
+          # the ORGANIZATION, not your personal account — a personal-owned
+          # token returns 404 on every call even though the secret is set.
+          # See docs/operations/SETUP-PREREQS.md. Note the token expiry date;
+          # an expired token reproduces this failure silently.
           WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
         with:
           script: |

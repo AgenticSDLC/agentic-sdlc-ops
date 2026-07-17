@@ -151,6 +151,15 @@ function assessDoctor(rootDir, args) {
       findings.push(`Missing standard GitHub labels: ${labels.missing.join(", ")}`);
       state = "remediation-required";
     }
+
+    if (labels.status === "ok" && labels.defaultLeftovers && labels.defaultLeftovers.length) {
+      findings.push(
+        `GitHub default labels conflict with the overlay label catalog: ${labels.defaultLeftovers.join(", ")}. Delete them per docs/operations/SETUP-PREREQS.md.`
+      );
+      if (state === "pass") {
+        state = "warning";
+      }
+    }
   }
 
   return {

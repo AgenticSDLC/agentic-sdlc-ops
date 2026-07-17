@@ -64,6 +64,13 @@ async function handleRuntimeCombined(args) {
   const executionBackend = getExecutionBackend(config);
   const current = controlPlane.capabilities.getIssue(rootDir, args.issue);
 
+  const issueLabelNames = (current.issue.labels || []).map((l) => (typeof l === "string" ? l : l.name));
+  if (issueLabelNames.includes("topology:split")) {
+    throw new Error(
+      `Issue #${current.issue.number} uses \`topology:split\`. Run \`agentic-sdlc runtime split --issue ${args.issue}\` instead.`
+    );
+  }
+
   // Explicit finalize (post-merge)
   if (args.finalize) {
     await runFinalize(rootDir, args, config, controlPlane, current);
@@ -428,4 +435,5 @@ async function runFinalize(rootDir, args, config, controlPlane, current) {
 
 module.exports = {
   handleRuntimeCombined,
+  runFinalize,
 };
