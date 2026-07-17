@@ -6,6 +6,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.12.4",
   "files": [
+    ".github/workflows/examples/",
     "cli/",
     "templates/",
     "README.md",
