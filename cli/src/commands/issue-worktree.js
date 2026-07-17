@@ -6,6 +6,7 @@ const {
   createIssueWorktree,
   listIssueWorktrees,
   removeIssueWorktree,
+  resolveIssueBranch,
 } = require("../lib/worktree");
 const { printFooter, printKeyValue, printPathList, printSection } = require("../ui");
 
@@ -40,9 +41,19 @@ async function handleIssueWorktree(args) {
   const config = buildConfig(rootDir, { ...args, profile }, inspection);
   const controlPlane = getControlPlane(config);
   const current = controlPlane.capabilities.getIssue(rootDir, args.issue);
-  const branch = buildBranchName(current.issue);
 
   if (args.remove) {
+    const prefix = `issue-${current.issue.number}-`;
+    const matchingWorktrees = listIssueWorktrees(rootDir).filter(
+      (worktree) => worktree.branch && worktree.branch.startsWith(prefix)
+    );
+    if (matchingWorktrees.length > 1) {
+      throw new Error(
+        `Multiple active worktrees match issue #${current.issue.number}: ` +
+          `${matchingWorktrees.map((worktree) => worktree.branch).join(", ")}.`
+      );
+    }
+    const branch = matchingWorktrees[0]?.branch || buildBranchName(current.issue);
     const result = removeIssueWorktree(rootDir, branch, { force: Boolean(args.force) });
     printSection("Issue Worktree Removed");
     printKeyValue("Issue", `#${current.issue.number} — ${current.issue.title}`);
@@ -55,6 +66,7 @@ async function handleIssueWorktree(args) {
     return;
   }
 
+  const branch = resolveIssueBranch(rootDir, current.issue.number);
   const result = createIssueWorktree(rootDir, branch, {
     targetPath: args.path,
   });

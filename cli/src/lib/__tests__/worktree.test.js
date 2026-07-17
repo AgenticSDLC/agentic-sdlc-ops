@@ -8,6 +8,8 @@ const { execFileSync } = require("node:child_process");
 const {
   parseWorktreeListPorcelain,
   listIssueWorktrees,
+  listRemoteIssueBranches,
+  resolveIssueBranch,
   resolveIssueWorktree,
   resolveRuntimeWorkingDirectory,
   createIssueWorktree,
@@ -107,6 +109,43 @@ test("createIssueWorktree tracks an automation-created remote branch", () => {
     assert.equal(result.action, "tracked-remote-branch");
     assert.ok(fs.existsSync(result.path));
     assert.ok(fs.existsSync(path.join(result.path, "README.md")));
+  });
+});
+
+test("resolveIssueBranch selects the unique automation-created branch despite slug differences", () => {
+  withTempRepo((dir) => {
+    publishIssueBranch(dir, "issue-21-task-title-kept-by-workflow", { deleteLocal: true });
+    assert.deepEqual(listRemoteIssueBranches(dir, 21), [
+      "issue-21-task-title-kept-by-workflow",
+    ]);
+    assert.equal(
+      resolveIssueBranch(dir, 21),
+      "issue-21-task-title-kept-by-workflow"
+    );
+  });
+});
+
+test("resolveIssueBranch fails closed when no remote issue branch exists", () => {
+  withTempRepo((dir) => {
+    assert.throws(
+      () => resolveIssueBranch(dir, 22),
+      /Remote issue branch matching `origin\/issue-22-\*` could not be established/
+    );
+  });
+});
+
+test("resolveIssueBranch fails closed when multiple remote branches match", () => {
+  withTempRepo((dir) => {
+    publishIssueBranch(dir, "issue-23-first", { deleteLocal: true });
+    publishIssueBranch(dir, "issue-23-second", { deleteLocal: true });
+    assert.throws(
+      () => resolveIssueBranch(dir, 23),
+      /Multiple remote branches match issue #23: issue-23-first, issue-23-second/
+    );
+    assert.equal(
+      listIssueWorktrees(dir).some((entry) => entry.branch?.startsWith("issue-23-")),
+      false
+    );
   });
 });
 

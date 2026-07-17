@@ -434,14 +434,14 @@ function evaluateImplementationScope(issue, changedFiles, config = {}) {
   };
 }
 
-function prepareCombinedRuntime(rootDir, issue, config) {
+function prepareCombinedRuntime(rootDir, issue, config, branchOverride = null) {
   const currentState = getCurrentLifecycleState(issue);
   const transitionDecision =
     currentState === "ready-for-build"
       ? validateLifecycleTransition(issue, "in-progress", config)
       : { ok: currentState === "in-progress", findings: currentState === "in-progress" ? [] : [`Issue must be in \`ready-for-build\` or \`in-progress\`, found \`${currentState || "none"}\`.`] };
 
-  const branch = buildBranchName(issue);
+  const branch = branchOverride || buildBranchName(issue);
   const preflightPlan = buildPreflightPlan(issue, config);
 
   return {

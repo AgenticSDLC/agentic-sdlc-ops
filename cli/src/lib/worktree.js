@@ -76,6 +76,89 @@ function resolveIssueWorktree(rootDir, branchName) {
   );
 }
 
+function issueBranchPrefix(issueNumber) {
+  const normalized = String(issueNumber || "").trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`Invalid issue number \`${issueNumber}\`.`);
+  }
+  return `issue-${normalized}-`;
+}
+
+function listRemoteIssueBranches(rootDir, issueNumber) {
+  const prefix = issueBranchPrefix(issueNumber);
+
+  try {
+    const output = execFileSync(
+      "git",
+      ["ls-remote", "--heads", "origin", `refs/heads/${prefix}*`],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }
+    ).trim();
+
+    if (!output) {
+      return [];
+    }
+
+    return output
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/)[1])
+      .filter(Boolean)
+      .map((ref) => ref.replace(/^refs\/heads\//, ""))
+      .filter((branch) => branch.startsWith(prefix));
+  } catch (error) {
+    const detail = String(error?.stderr || error?.message || "").trim();
+    throw new Error(
+      `Unable to inspect remote issue branches matching \`origin/${prefix}*\`.` +
+        (detail ? ` Git reported: ${detail}` : "")
+    );
+  }
+}
+
+// The issue number is the stable branch identity. The title-derived slug is
+// presentation only and can differ between GitHub workflow shells and the
+// JavaScript CLI. Prefer an already-attached worktree, otherwise accept one
+// and only one automation-created remote branch.
+function resolveIssueBranch(rootDir, issueNumber) {
+  const prefix = issueBranchPrefix(issueNumber);
+  const remoteMatches = listRemoteIssueBranches(rootDir, issueNumber);
+  if (!remoteMatches.length) {
+    throw new Error(
+      `Remote issue branch matching \`origin/${prefix}*\` could not be established. ` +
+        "The issue lifecycle must create exactly one remote branch before worktree or runtime execution."
+    );
+  }
+  if (remoteMatches.length > 1) {
+    throw new Error(
+      `Multiple remote branches match issue #${issueNumber}: ${remoteMatches.join(", ")}. ` +
+        "Branch selection is ambiguous; remove stale branches or correct the lifecycle automation."
+    );
+  }
+
+  const remoteBranch = remoteMatches[0];
+  const worktreeMatches = listIssueWorktrees(rootDir).filter(
+    (entry) => entry.branch && entry.branch.startsWith(prefix) && !entry.prunable
+  );
+
+  if (worktreeMatches.length > 1) {
+    throw new Error(
+      `Multiple active worktrees match issue #${issueNumber}: ` +
+        `${worktreeMatches.map((entry) => entry.branch).join(", ")}. ` +
+        "Remove the stale or duplicate worktree before continuing."
+    );
+  }
+  if (worktreeMatches.length === 1 && worktreeMatches[0].branch !== remoteBranch) {
+    throw new Error(
+      `Active worktree branch \`${worktreeMatches[0].branch}\` conflicts with the remote branch ` +
+        `\`${remoteBranch}\` for issue #${issueNumber}. Remove the stale worktree before continuing.`
+    );
+  }
+
+  return remoteBranch;
+}
+
 // realpath so comparisons are correct even when the caller's cwd or a
 // worktree path traverses a symlink (e.g. macOS /var -> /private/var) —
 // path.resolve() alone does not follow symlinks and would falsely report a
@@ -227,6 +310,8 @@ module.exports = {
   parseWorktreeListPorcelain,
   listWorktrees,
   listIssueWorktrees,
+  listRemoteIssueBranches,
+  resolveIssueBranch,
   resolveIssueWorktree,
   resolveRuntimeWorkingDirectory,
   createIssueWorktree,

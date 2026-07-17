@@ -23,9 +23,8 @@ const {
   runVerification,
   validateVerificationPrerequisites,
   prepareCombinedRuntime,
-  buildBranchName,
 } = require("../lib/runtime-combined");
-const { resolveRuntimeWorkingDirectory } = require("../lib/worktree");
+const { resolveIssueBranch, resolveRuntimeWorkingDirectory } = require("../lib/worktree");
 const { validateLifecycleTransition } = require("../lib/policy");
 const { printFooter, printKeyValue, printSection, printPhase, printDetail } = require("../ui");
 
@@ -72,12 +71,19 @@ async function handleRuntimeCombined(args) {
     );
   }
 
+  // Finalization is provider-only cleanup after merge. The issue branch may
+  // already have been deleted, so it must not depend on branch discovery.
+  if (args.finalize) {
+    await runFinalize(rootDir, args, config, controlPlane, current);
+    return;
+  }
+
   // If this issue's branch already lives in its own worktree (created via
   // `agentic-sdlc issue worktree`), operate there instead of rootDir — the
   // whole point of a worktree is to let issues run in parallel without
   // fighting over one checkout. Refuses instead of guessing when --target
   // was explicit and doesn't match.
-  const branch = buildBranchName(current.issue);
+  const branch = resolveIssueBranch(rootDir, current.issue.number);
   const worktreeResolution = resolveRuntimeWorkingDirectory(rootDir, branch, Boolean(args.target));
   if (worktreeResolution.redirected) {
     rootDir = worktreeResolution.rootDir;
@@ -89,15 +95,9 @@ async function handleRuntimeCombined(args) {
 
   const executionBackend = getExecutionBackend(config);
 
-  // Explicit finalize (post-merge)
-  if (args.finalize) {
-    await runFinalize(rootDir, args, config, controlPlane, current);
-    return;
-  }
-
   // Explicit verify-only resume
   if (args.verify) {
-    await runVerifyAndFinalize(rootDir, args, config, controlPlane, current);
+    await runVerifyAndFinalize(rootDir, args, config, controlPlane, current, branch);
     return;
   }
 
@@ -113,7 +113,7 @@ async function handleRuntimeCombined(args) {
   watchdog.unref();
 
   try {
-    const prepared = prepareCombinedRuntime(rootDir, current.issue, config);
+    const prepared = prepareCombinedRuntime(rootDir, current.issue, config, branch);
     const startingBranch = getCurrentBranchName(rootDir);
 
     // === PREFLIGHT ===
@@ -379,8 +379,8 @@ async function handleRuntimeCombined(args) {
   }
 }
 
-async function runVerifyAndFinalize(rootDir, args, config, controlPlane, current) {
-  const prepared = prepareCombinedRuntime(rootDir, current.issue, config);
+async function runVerifyAndFinalize(rootDir, args, config, controlPlane, current, branch) {
+  const prepared = prepareCombinedRuntime(rootDir, current.issue, config, branch);
   const prLookup = controlPlane.capabilities.getPullRequestForBranch(rootDir, prepared.branch);
 
   if (!prLookup.pullRequest) {
