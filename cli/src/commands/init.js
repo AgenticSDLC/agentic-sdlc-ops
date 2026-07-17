@@ -218,6 +218,8 @@ async function handleInit(args) {
 
   if (args.diff) {
     printKeyValue("Diff Mode", "no files were written; rerun without --diff to apply");
+    printFooter("Report-only overlay comparison complete. No repository, provider, dependency, or backend state was changed.");
+    return;
   }
 
   let labelSync = null;
