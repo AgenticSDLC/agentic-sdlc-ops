@@ -213,4 +213,7 @@ The builder ends at `git push`. CI owns verification from that point.
 - Check for a `stop` comment on the issue or PR
 - Confirm `WORKFLOW_TOKEN` exists and has pull-request/workflow permission
 - Confirm every required validation workflow subscribes to `ready_for_review`
+- Confirm `policy-auto-merge` retains `checks: read`
+- Confirm its resolver found an open PR for the completed workflow head
+- Confirm repeated evaluations share the same PR-head concurrency key
 - If suppression is intentional, merge manually

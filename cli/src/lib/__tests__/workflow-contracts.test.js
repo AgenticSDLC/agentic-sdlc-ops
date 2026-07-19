@@ -39,3 +39,14 @@ test("draft bootstrapper uses the workflow token for downstream PR events", () =
   assert.match(source, /pr-readiness-policy\.mjs/);
   assert.match(source, /markPullRequestReadyForReview/);
 });
+
+test("auto-merge can read checks and coalesces evaluations by head SHA", () => {
+  const source = readWorkflow("policy-auto-merge.example.yml");
+
+  assert.match(source, /checks:\s*read/);
+  assert.match(source, /resolve-candidates:/);
+  assert.match(source, /skipping before checkout/);
+  assert.match(source, /policy-auto-merge-\$\{\{\s*needs\.resolve-candidates\.outputs\.head_sha\s*\}\}/);
+  assert.match(source, /cancel-in-progress:\s*false/);
+  assert.match(source, /Generated policy-auto-merge requires `permissions: checks: read`/);
+});
