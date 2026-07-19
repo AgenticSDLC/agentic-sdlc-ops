@@ -175,6 +175,7 @@ Current scope includes:
 
 - Understand the lifecycle: [public/LIFECYCLE.md](public/LIFECYCLE.md)
 - Setup flow: [docs/getting-started-web-app.md](docs/getting-started-web-app.md)
+- Parallel operations: [docs/parallel-issue-execution-runbook.md](docs/parallel-issue-execution-runbook.md)
 - Product direction: [docs/vision.md](docs/vision.md)
 - Design intent: [docs/design-principles.md](docs/design-principles.md)
 - Guidebook: [agenticsdlc.github.io/agentic-sdlc-ops](https://agenticsdlc.github.io/agentic-sdlc-ops/)
