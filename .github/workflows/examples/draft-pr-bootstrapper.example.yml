@@ -6,6 +6,10 @@ name: Draft PR Bootstrapper
 # set Workflow permissions to "Read and write" AND enable "Allow GitHub
 # Actions to create and approve pull requests". Repo-level settings cannot
 # exceed the org ceiling. See docs/operations/SETUP-PREREQS.md.
+#
+# Combined-topology PRs are created ready (or promoted from an existing
+# draft) with WORKFLOW_TOKEN so GitHub emits the downstream pull_request
+# event. Split-topology PRs remain drafts until the verifier handoff.
 
 run-name: >-
     Draft PR Bootstrapper /
@@ -112,26 +116,89 @@ jobs:
                       core.setOutput('exists', linked ? 'true' : 'false');
                       if (linked) {
                         core.setOutput('url', linked.html_url);
+                        core.setOutput('number', String(linked.number));
+                        core.setOutput('node_id', linked.node_id);
+                        core.setOutput('draft', linked.draft ? 'true' : 'false');
                       }
 
-            - name: Stop if PR already exists
+            - name: Reconcile existing PR readiness
               if: steps.existing_pr.outputs.exists == 'true'
               uses: actions/github-script@v7
+              env:
+                  WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
               with:
+                  github-token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
                   script: |
+                      const { decidePullRequestReadiness } = await import(
+                        `${process.env.GITHUB_WORKSPACE}/scripts/pr-readiness-policy.mjs`
+                      );
+
                       const owner = context.repo.owner;
                       const repo = context.repo.repo;
                       const issue_number = Number(`${{ steps.issue.outputs.number }}`);
+                      const prNumber = Number(`${{ steps.existing_pr.outputs.number }}`);
+                      const prNodeId = `${{ steps.existing_pr.outputs.node_id }}`;
+                      const isDraft = `${{ steps.existing_pr.outputs.draft }}` === 'true';
                       const existingUrl = `${{ steps.existing_pr.outputs.url }}`;
                       const tag = '<!-- draft-pr-bootstrapper -->';
-                      const comments = await github.paginate(github.rest.issues.listComments, {
+
+                      const issue = await github.rest.issues.get({
+                        owner,
+                        repo,
+                        issue_number,
+                      });
+                      const issueLabels = (issue.data.labels || []).map(label => label.name);
+                      const issueComments = await github.paginate(github.rest.issues.listComments, {
                         owner,
                         repo,
                         issue_number,
                         per_page: 100
                       });
-                      const existing = comments.find(c => typeof c.body === 'string' && c.body.includes(tag));
-                      const body = `${tag}\nA draft PR already exists for this issue: ${existingUrl}`;
+                      const prComments = await github.paginate(github.rest.issues.listComments, {
+                        owner,
+                        repo,
+                        issue_number: prNumber,
+                        per_page: 100
+                      });
+                      const hasStopComment = [...issueComments, ...prComments].some(comment =>
+                        /\bstop\b/i.test(comment.body || '') &&
+                        !(comment.body || '').includes('<!-- agent-job-status') &&
+                        !(comment.body || '').includes('<!-- split-')
+                      );
+
+                      const decision = decidePullRequestReadiness({
+                        isDraft,
+                        issueLabels,
+                        hasStopComment,
+                      });
+
+                      async function markPullRequestReadyForReview(pullRequestId) {
+                        await github.graphql(
+                          `mutation($pullRequestId: ID!) {
+                            markPullRequestReadyForReview(input: {pullRequestId: $pullRequestId}) {
+                              pullRequest { id isDraft }
+                            }
+                          }`,
+                          { pullRequestId },
+                        );
+                      }
+
+                      if (decision.ready) {
+                        if (!process.env.WORKFLOW_TOKEN) {
+                          throw new Error(
+                            'WORKFLOW_TOKEN is required to mark a combined PR ready and emit downstream pull_request events.'
+                          );
+                        }
+                        await markPullRequestReadyForReview(prNodeId);
+                      }
+
+                      const existing = issueComments.find(c =>
+                        typeof c.body === 'string' && c.body.includes(tag)
+                      );
+                      const status = decision.ready
+                        ? 'Combined builder push received; PR marked ready for CI.'
+                        : `PR readiness unchanged (${decision.reason}).`;
+                      const body = `${tag}\n${status}\n\nPR: ${existingUrl}`;
 
                       if (existing) {
                         await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
@@ -192,11 +259,18 @@ jobs:
                         await github.rest.issues.createComment({ owner, repo, issue_number, body });
                       }
 
-            - name: Create draft PR
+            - name: Create topology-aware PR
               if: steps.existing_pr.outputs.exists != 'true' && steps.branch_delta.outputs.ahead != '0'
               uses: actions/github-script@v7
+              env:
+                  WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
               with:
+                  github-token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
                   script: |
+                      const { decidePullRequestReadiness } = await import(
+                        `${process.env.GITHUB_WORKSPACE}/scripts/pr-readiness-policy.mjs`
+                      );
+
                       const owner = context.repo.owner;
                       const repo = context.repo.repo;
                       const branch = `${{ steps.branch.outputs.branch }}`;
@@ -207,6 +281,29 @@ jobs:
                       // Fetch issue body and extract sections for the PR
                       const issue = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
                       const issueBody = issue.data.body || '';
+                      const issueLabels = (issue.data.labels || []).map(label => label.name);
+                      const issueComments = await github.paginate(github.rest.issues.listComments, {
+                        owner,
+                        repo,
+                        issue_number: issueNumber,
+                        per_page: 100,
+                      });
+                      const hasStopComment = issueComments.some(comment =>
+                        /\bstop\b/i.test(comment.body || '') &&
+                        !(comment.body || '').includes('<!-- agent-job-status') &&
+                        !(comment.body || '').includes('<!-- split-')
+                      );
+                      const readiness = decidePullRequestReadiness({
+                        isDraft: true,
+                        issueLabels,
+                        hasStopComment,
+                      });
+
+                      if (readiness.ready && !process.env.WORKFLOW_TOKEN) {
+                        throw new Error(
+                          'WORKFLOW_TOKEN is required to create a ready combined PR and emit downstream pull_request events.'
+                        );
+                      }
 
                       function extractSection(body, heading) {
                         const pattern = new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n---\\s*\\n|\\n## |$)`);
@@ -220,7 +317,7 @@ jobs:
                       const lines = [
                         `Closes #${issueNumber}`,
                         '',
-                        `Draft PR automatically created after the issue branch had commits ahead of \`${baseBranch}\`.`,
+                        `PR automatically created after the issue branch had commits ahead of \`${baseBranch}\`.`,
                         '',
                         `_Context: issue #${issueNumber} — '${issueTitle}' / branch '${branch}' / base '${baseBranch}'_`,
                         '',
@@ -234,7 +331,7 @@ jobs:
                         '',
                         '## Verification',
                         '',
-                        '_Fill in before marking ready for review._',
+                        'CI owns verification. Required repository checks must pass for the current head.',
                         '',
                         '---',
                         '',
@@ -247,7 +344,7 @@ jobs:
                         '',
                         '## Risks / Follow-Up',
                         '',
-                        '_Fill in before marking ready for review._',
+                        `- Automatic readiness decision: \`${readiness.reason}\`.`,
                       ];
 
                       if (targetFiles) {
@@ -263,13 +360,16 @@ jobs:
                         head: branch,
                         base: baseBranch,
                         body,
-                        draft: true
+                        draft: !readiness.ready
                       });
 
                       const tag = '<!-- draft-pr-bootstrapper -->';
+                      const status = readiness.ready
+                        ? 'Ready combined-topology PR created; CI may begin.'
+                        : `Draft PR created (${readiness.reason}).`;
                       await github.rest.issues.createComment({
                         owner,
                         repo,
                         issue_number: issueNumber,
-                        body: `${tag}\nDraft PR created: ${pr.data.html_url}`
+                        body: `${tag}\n${status}\n\nPR: ${pr.data.html_url}`
                       });

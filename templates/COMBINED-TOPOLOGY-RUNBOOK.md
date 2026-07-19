@@ -6,8 +6,10 @@
 Issue created
   → ready-for-build  (scope validated)
   → in-progress      (execution begins, branch created by automation)
-  → branch has commits → draft PR created automatically
-  → PR review → merge
+  → builder pushes
+  → ready PR created/promoted with WORKFLOW_TOKEN
+  → CI verifies current head
+  → configured merge policy evaluates → merge
 ```
 
 ## When To Use
@@ -18,7 +20,8 @@ This is the default topology. When no `topology:*` label is present, combined is
 
 ## Merge Policy
 
-Default behavior is automation-first merge once the verifier gate passes (if `policy-auto-merge` is configured).
+Default behavior is automation-first merge once current-head CI and the
+combined-topology merge gate pass (if `policy-auto-merge` is configured).
 
 To require a human reviewer to merge: add `merge:human-required` to the issue.
 
@@ -168,14 +171,24 @@ git commit -m "feat(issue-<id>): <short description>"
 git push origin "issue-<issue-id>-<slug>"
 ```
 
-If this is the first commit with content, the draft PR bootstrapper creates the draft PR automatically. Later pushes update the same PR.
+If this is the first commit with content, the bootstrapper creates a ready PR
+for combined topology using `WORKFLOW_TOKEN`, which allows every generated
+`pull_request` validator to receive the event. If an existing combined PR is
+still a draft, the next builder push promotes it idempotently.
+
+Automatic readiness is suppressed by `merge:human-required`, `hold`,
+`needs-human`, or a stop comment. Split-topology PRs remain drafts and follow
+the split verifier handoff.
+
+The builder ends at `git push`. CI owns verification from that point.
 
 ## Success Signals
 
 - Issue scope implemented without expanding requirements
-- Verification passes
-- Task-relevant evidence available
-- Draft PR exists or was updated from the issue branch
+- Required CI passes for the current PR head
+- Task-relevant evidence is available
+- Combined PR is ready, or readiness is visibly suppressed by policy
+- Configured merge policy evaluates after CI
 
 ## Troubleshooting
 
@@ -198,4 +211,6 @@ If this is the first commit with content, the draft PR bootstrapper creates the 
 **PR does not auto-merge when expected:**
 - Check for `merge:human-required`, `hold`, or `needs-human` on the issue
 - Check for a `stop` comment on the issue or PR
+- Confirm `WORKFLOW_TOKEN` exists and has pull-request/workflow permission
+- Confirm every required validation workflow subscribes to `ready_for_review`
 - If suppression is intentional, merge manually
