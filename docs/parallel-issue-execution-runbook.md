@@ -69,7 +69,7 @@ Use an explicit path when the executor has a bounded writable root:
 ```sh
 agentic-sdlc issue worktree \
   --issue <number> \
-  --path /private/tmp/<repository>-issue-<number>
+  --path <writable-root>/<repository>-issue-<number>
 ```
 
 List the resulting worktrees:
