@@ -200,7 +200,13 @@ Verifier completion markers (must appear in the raw comment body, posted on the 
 - Pass — **two** markers, together: `<!-- split-verifier-pass -->` plus `<!-- split-verifier-sha: <head-sha> -->` binding the attestation to the audited commit. The policy gates reject a pass with no SHA line (unbound) or with a SHA older than the current head (stale) — a new commit always requires a fresh audit. Get the SHA with `gh pr view <pr> --json headRefOid --jq .headRefOid`.
 - `<!-- split-verifier-blocker -->` — merge is blocked; `policy-verifier-gate` will report failure. No SHA line needed.
 
-If `policy-auto-merge` is configured, a valid bound pass triggers merge once required checks are green. Repositories that want the attestation to come from an independent identity (not the builder's account) can set `VERIFIER_ALLOWLIST` in `scripts/merge-gate-policy.mjs` — see `docs/operations/SETUP-PREREQS.md`.
+If `policy-auto-merge` is configured with `AGENTIC_AUTO_MERGE_MODE=auto`, a
+valid bound pass triggers merge once required checks are green. Split topology
+always requires this attestation; combined topology does not. Repositories
+that want the attestation to come from an independent identity (not the
+builder's account) can set `VERIFIER_ALLOWLIST` in
+`scripts/merge-gate-policy.mjs` — see
+`docs/operations/SETUP-PREREQS.md`.
 
 The verifier role is separate from implementation. It confirms evidence exists; it does not add new implementation work.
 

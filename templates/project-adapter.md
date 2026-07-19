@@ -68,6 +68,13 @@ Recommended default:
 - auto-merge after required verification and policy checks pass
 - `merge:human-required` enforces human-in-the-middle merge
 
+When the generated GitHub policy is installed, declare the repository-level
+`AGENTIC_AUTO_MERGE_MODE` variable:
+
+- `auto` — topology-aware automation may merge after all gates pass
+- `human-required` — automation never merges
+- `disabled` — auto-merge evaluation is disabled
+
 Clarify that `hold` and `needs-human` are interruption signals, not the primary long-term merge policy label.
 
 ## State Labels

@@ -20,6 +20,7 @@ export const REQUIRED_CHECKS = [
 ]
 
 export const BLOCKING_LABELS = ["merge:human-required", "hold", "needs-human"]
+export const MERGE_MODES = ["auto", "human-required", "disabled"]
 
 /**
  * Optional verifier identity enforcement. Empty = any author may attest
@@ -74,6 +75,19 @@ export function evaluateVerifierAttestation(input) {
   return { ok: true, reason: "verifier-attestation-valid" }
 }
 
+export function resolveTopology(issueLabels = []) {
+  const hasCombined = issueLabels.includes("topology:combined")
+  const hasSplit = issueLabels.includes("topology:split")
+
+  if (hasCombined && hasSplit) {
+    return { ok: false, topology: null, reason: "topology-conflict" }
+  }
+  if (hasSplit) {
+    return { ok: true, topology: "split", reason: "topology-split" }
+  }
+  return { ok: true, topology: "combined", reason: "topology-combined" }
+}
+
 /**
  * @param {object} input
  * @param {boolean} input.isOpen              PR state is open
@@ -86,15 +100,28 @@ export function evaluateVerifierAttestation(input) {
  * @param {string} input.headSha              the PR's current head SHA
  * @param {Array<{name: string, headSha: string, status: string, conclusion: string | null}>} input.checkRuns
  *   check runs observed for the PR head (any SHA — the policy filters)
+ * @param {"auto"|"human-required"|"disabled"} [input.mergeMode]
+ *   repository-level merge mode; defaults to auto
  * @param {string[]} [input.requiredChecks]   override for tests; defaults to REQUIRED_CHECKS
  * @param {string[]} [input.verifierAllowlist] override for tests; defaults to VERIFIER_ALLOWLIST
  * @returns {{ merge: boolean, reason: string }}
  */
 export function decideMerge(input) {
   const requiredChecks = input.requiredChecks ?? REQUIRED_CHECKS
+  const mergeMode = input.mergeMode ?? "auto"
 
   if (!input.isOpen) return { merge: false, reason: "pr-not-open" }
   if (input.isDraft) return { merge: false, reason: "pr-is-draft" }
+
+  if (!MERGE_MODES.includes(mergeMode)) {
+    return { merge: false, reason: `merge-mode-invalid:${mergeMode}` }
+  }
+  if (mergeMode === "disabled") {
+    return { merge: false, reason: "merge-mode-disabled" }
+  }
+  if (mergeMode === "human-required") {
+    return { merge: false, reason: "merge-mode-human-required" }
+  }
 
   const blocker = BLOCKING_LABELS.find((label) => input.issueLabels.includes(label))
   if (blocker) return { merge: false, reason: `blocking-label:${blocker}` }
@@ -102,12 +129,17 @@ export function decideMerge(input) {
   if (input.hasStopComment) return { merge: false, reason: "stop-comment" }
   if (input.hasBlockerMarker) return { merge: false, reason: "verifier-blocker" }
 
-  const attestation = evaluateVerifierAttestation({
-    verifierPasses: input.verifierPasses,
-    headSha: input.headSha,
-    allowlist: input.verifierAllowlist,
-  })
-  if (!attestation.ok) return { merge: false, reason: attestation.reason }
+  const topology = resolveTopology(input.issueLabels)
+  if (!topology.ok) return { merge: false, reason: topology.reason }
+
+  if (topology.topology === "split") {
+    const attestation = evaluateVerifierAttestation({
+      verifierPasses: input.verifierPasses,
+      headSha: input.headSha,
+      allowlist: input.verifierAllowlist,
+    })
+    if (!attestation.ok) return { merge: false, reason: attestation.reason }
+  }
 
   // Only runs for the exact current head SHA count. A newer commit
   // invalidates every check observed on an older SHA.

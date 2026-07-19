@@ -3,6 +3,7 @@ import { test } from "node:test"
 import {
   decideMerge,
   evaluateVerifierAttestation,
+  resolveTopology,
   REQUIRED_CHECKS,
 } from "./merge-gate-policy.mjs"
 
@@ -32,7 +33,7 @@ function baseInput(overrides = {}) {
     verifierPasses: [boundPass()],
     hasBlockerMarker: false,
     hasStopComment: false,
-    issueLabels: [],
+    issueLabels: ["topology:combined"],
     headSha: HEAD,
     checkRuns: passingRuns(),
     requiredChecks: CHECKS,
@@ -41,11 +42,35 @@ function baseInput(overrides = {}) {
   }
 }
 
-test("merges when every required check passed and the attestation is bound to the head", () => {
-  assert.deepEqual(decideMerge(baseInput()), {
+test("combined topology merges with green checks and no verifier pass", () => {
+  assert.deepEqual(decideMerge(baseInput({ verifierPasses: [] })), {
     merge: true,
     reason: "all-required-checks-passed",
   })
+})
+
+test("no topology label defaults to combined", () => {
+  assert.deepEqual(
+    decideMerge(baseInput({ issueLabels: [], verifierPasses: [] })),
+    { merge: true, reason: "all-required-checks-passed" },
+  )
+})
+
+test("split topology merges only with a current-head verifier pass", () => {
+  assert.deepEqual(
+    decideMerge(baseInput({ issueLabels: ["topology:split"] })),
+    { merge: true, reason: "all-required-checks-passed" },
+  )
+
+  assert.deepEqual(
+    decideMerge(
+      baseInput({
+        issueLabels: ["topology:split"],
+        verifierPasses: [],
+      }),
+    ),
+    { merge: false, reason: "no-verifier-pass" },
+  )
 })
 
 test("refuses while any required check is pending", () => {
@@ -87,18 +112,33 @@ test("a new commit invalidates checks from an older head SHA", () => {
 })
 
 test("refuses without any verifier pass even when checks are green", () => {
-  const decision = decideMerge(baseInput({ verifierPasses: [] }))
+  const decision = decideMerge(
+    baseInput({
+      issueLabels: ["topology:split"],
+      verifierPasses: [],
+    }),
+  )
   assert.deepEqual(decision, { merge: false, reason: "no-verifier-pass" })
 })
 
 test("an unbound pass marker (no sha line) never satisfies the gate", () => {
-  const decision = decideMerge(baseInput({ verifierPasses: [boundPass({ sha: null })] }))
+  const decision = decideMerge(
+    baseInput({
+      issueLabels: ["topology:split"],
+      verifierPasses: [boundPass({ sha: null })],
+    }),
+  )
   assert.deepEqual(decision, { merge: false, reason: "verifier-pass-not-sha-bound" })
 })
 
 test("a stale attestation does not authorize merging a newer commit", () => {
   const stale = boundPass({ sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" })
-  const decision = decideMerge(baseInput({ verifierPasses: [stale] }))
+  const decision = decideMerge(
+    baseInput({
+      issueLabels: ["topology:split"],
+      verifierPasses: [stale],
+    }),
+  )
   assert.deepEqual(decision, { merge: false, reason: "verifier-pass-stale-sha" })
 })
 
@@ -120,12 +160,16 @@ test("short SHA prefixes of at least 7 chars bind correctly", () => {
 
 test("allowlist enforcement requires a bound pass from an authorized author", () => {
   const unauthorized = decideMerge(
-    baseInput({ verifierAllowlist: ["trusted-verifier"] })
+    baseInput({
+      issueLabels: ["topology:split"],
+      verifierAllowlist: ["trusted-verifier"],
+    })
   )
   assert.deepEqual(unauthorized, { merge: false, reason: "verifier-not-authorized" })
 
   const authorized = decideMerge(
     baseInput({
+      issueLabels: ["topology:split"],
       verifierAllowlist: ["trusted-verifier"],
       verifierPasses: [boundPass({ author: "trusted-verifier" })],
     })
@@ -135,6 +179,7 @@ test("allowlist enforcement requires a bound pass from an authorized author", ()
   // A stale attestation from an authorized author still fails.
   const staleAuthorized = decideMerge(
     baseInput({
+      issueLabels: ["topology:split"],
       verifierAllowlist: ["trusted-verifier"],
       verifierPasses: [
         boundPass({ author: "trusted-verifier", sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }),
@@ -163,4 +208,34 @@ test("the unconfigured REQUIRED_CHECKS placeholder fails closed", () => {
   const decision = decideMerge(baseInput({ requiredChecks: undefined }))
   assert.equal(decision.merge, false)
   assert.equal(decision.reason, `check-missing:${REQUIRED_CHECKS[0]}`)
+})
+
+test("repository merge modes fail closed", () => {
+  assert.deepEqual(
+    decideMerge(baseInput({ mergeMode: "human-required" })),
+    { merge: false, reason: "merge-mode-human-required" },
+  )
+  assert.deepEqual(
+    decideMerge(baseInput({ mergeMode: "disabled" })),
+    { merge: false, reason: "merge-mode-disabled" },
+  )
+  assert.deepEqual(
+    decideMerge(baseInput({ mergeMode: "unexpected" })),
+    { merge: false, reason: "merge-mode-invalid:unexpected" },
+  )
+})
+
+test("conflicting topology labels fail closed", () => {
+  assert.deepEqual(
+    resolveTopology(["topology:combined", "topology:split"]),
+    { ok: false, topology: null, reason: "topology-conflict" },
+  )
+  assert.deepEqual(
+    decideMerge(
+      baseInput({
+        issueLabels: ["topology:combined", "topology:split"],
+      }),
+    ),
+    { merge: false, reason: "topology-conflict" },
+  )
 })
