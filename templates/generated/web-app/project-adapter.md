@@ -45,6 +45,9 @@ Once a PR exists, the PR thread becomes the preferred steering surface.
 ## Merge Policy
 
 - default behavior is auto-merge after required verification and policy checks pass
+- repository variable `AGENTIC_AUTO_MERGE_MODE` is `auto`, `human-required`, or `disabled`
+- combined topology requires current-head CI and no split verifier marker
+- split topology additionally requires a current-head SHA-bound verifier pass
 - `merge:human-required` is the explicit human-in-the-middle merge gate
 - `hold` and `needs-human` are pause or interruption controls, not the primary long-term merge policy label
 

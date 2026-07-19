@@ -22,6 +22,10 @@ This is the default topology. When no `topology:*` label is present, combined is
 
 Default behavior is automation-first merge once current-head CI and the
 combined-topology merge gate pass (if `policy-auto-merge` is configured).
+Combined topology does not require a split verifier marker.
+
+Repository variable `AGENTIC_AUTO_MERGE_MODE` controls the default:
+`auto`, `human-required`, or `disabled`. Any unsupported value fails closed.
 
 To require a human reviewer to merge: add `merge:human-required` to the issue.
 
@@ -216,4 +220,5 @@ The builder ends at `git push`. CI owns verification from that point.
 - Confirm `policy-auto-merge` retains `checks: read`
 - Confirm its resolver found an open PR for the completed workflow head
 - Confirm repeated evaluations share the same PR-head concurrency key
+- Confirm `AGENTIC_AUTO_MERGE_MODE` is `auto`
 - If suppression is intentional, merge manually

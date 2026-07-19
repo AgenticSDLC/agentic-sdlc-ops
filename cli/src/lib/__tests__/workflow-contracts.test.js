@@ -49,4 +49,7 @@ test("auto-merge can read checks and coalesces evaluations by head SHA", () => {
   assert.match(source, /policy-auto-merge-\$\{\{\s*needs\.resolve-candidates\.outputs\.head_sha\s*\}\}/);
   assert.match(source, /cancel-in-progress:\s*false/);
   assert.match(source, /Generated policy-auto-merge requires `permissions: checks: read`/);
+  assert.match(source, /AGENTIC_AUTO_MERGE_MODE/);
+  assert.match(source, /mergeMode:\s*process\.env\.MERGE_MODE/);
+  assert.match(source, /state:\s*'closed'/);
 });

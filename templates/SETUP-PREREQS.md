@@ -124,3 +124,22 @@ PR head SHA. If many completed policy runs still appear:
 2. confirm every upstream workflow reports the PR head SHA;
 3. confirm the generated concurrency group is intact; and
 4. inspect the resolver log before changing merge policy.
+
+Set the repository merge mode explicitly:
+
+```bash
+gh variable set AGENTIC_AUTO_MERGE_MODE \
+  --repo <org>/<repo> \
+  --body auto
+```
+
+Supported values:
+
+- `auto` (default): combined requires current-head CI; split also requires a
+  current-head SHA-bound verifier pass
+- `human-required`: the workflow evaluates fail-closed and never merges
+- `disabled`: automation never merges
+
+An unsupported value fails closed with `merge-mode-invalid:<value>`.
+The issue label `merge:human-required` overrides repository `auto` mode for
+one work item.
