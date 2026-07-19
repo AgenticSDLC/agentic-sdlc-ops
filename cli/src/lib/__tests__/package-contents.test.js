@@ -30,4 +30,14 @@ test("published package includes every non-template overlay source", () => {
       `missing published workflow source: ${fileName}`
     );
   }
+
+  for (const fileName of [
+    "pr-readiness-policy.mjs",
+    "pr-readiness-policy.test.mjs",
+  ]) {
+    assert.ok(
+      fs.existsSync(path.join(rootDir, "templates", "scripts", fileName)),
+      `missing published policy source: ${fileName}`
+    );
+  }
 });

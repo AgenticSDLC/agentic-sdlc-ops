@@ -17,12 +17,14 @@ the **organization** level (repo-level settings inherit the org ceiling):
   - Workflow permissions: **Read and write**
   - Enable **"Allow GitHub Actions to create and approve pull requests"**
 
-## 2. WORKFLOW_TOKEN Secret (auto-transition PAT)
+## 2. WORKFLOW_TOKEN Secret (lifecycle event PAT)
 
 **Failure if skipped:** the issue readiness validator passes but the
 `ready-for-build → in-progress` auto-transition fails, and the bootstrapper
-never fires. Events created with the default `GITHUB_TOKEN` do not trigger
-downstream workflows — a PAT is required.
+never fires. Combined-topology PR creation/readiness also fails before CI can
+start. Events created with the default `GITHUB_TOKEN` do not trigger
+downstream workflows — a PAT is required for both lifecycle transitions and
+the combined builder-push → ready-PR handoff.
 
 **The trap:** fine-grained access (FGA) tokens are bound to a single
 **Resource Owner**. A token created under your personal account has no
@@ -44,6 +46,11 @@ explicitly authorized for the organization.
 
 **Note the token's expiry date** somewhere the team will see it — an expired
 `WORKFLOW_TOKEN` reproduces the original failure silently.
+
+The bootstrapper uses this token only when a combined PR should become ready.
+Split-topology PRs remain drafts until their verifier handoff. Labels
+`merge:human-required`, `hold`, and `needs-human`, plus a stop comment,
+suppress automatic readiness.
 
 ## 3. Replace GitHub Default Labels
 

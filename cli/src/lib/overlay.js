@@ -316,6 +316,16 @@ function generateOverlay(config, rootDir, options = {}) {
     },
     {
       enabled: true,
+      target: path.join("scripts", "pr-readiness-policy.mjs"),
+      source: ["templates", "scripts", "pr-readiness-policy.mjs"],
+    },
+    {
+      enabled: true,
+      target: path.join("scripts", "pr-readiness-policy.test.mjs"),
+      source: ["templates", "scripts", "pr-readiness-policy.test.mjs"],
+    },
+    {
+      enabled: true,
       target: path.join(".claude", "agents", "planner.md"),
       source: ["templates", "claude-agents", "planner.md"],
     },
