@@ -104,3 +104,23 @@ Leave `VERIFIER_ALLOWLIST` empty to skip identity enforcement.
 agentic-sdlc issue publish --spec <draft> --state none
 gh issue edit <number> --add-label "ready-for-build"   # when unblocked
 ```
+
+## 6. Auto-Merge Checks Permission And Trigger Set
+
+**Failure if skipped:** `policy-auto-merge` fails with
+`Resource not accessible by integration` while calling the Checks API, or
+creates repeated policy jobs for workflow completions that do not belong to
+an open PR.
+
+The generated workflow declares `checks: read`; preserve that permission when
+adapting its `permissions` block. Replace the placeholder
+`workflow_run.workflows` list with only workflows whose completion can change
+the required-check decision.
+
+The workflow resolves an open PR before checkout and coalesces evaluations by
+PR head SHA. If many completed policy runs still appear:
+
+1. remove unrelated workflow names from `workflow_run.workflows`;
+2. confirm every upstream workflow reports the PR head SHA;
+3. confirm the generated concurrency group is intact; and
+4. inspect the resolver log before changing merge policy.

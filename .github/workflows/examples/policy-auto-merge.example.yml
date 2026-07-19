@@ -6,27 +6,19 @@ run-name: >-
     ${{ github.event.issue && format('pr #{0}', github.event.issue.number) || (github.event.workflow_run && github.event.workflow_run.head_sha) || 'n/a' }}
 
 # Repository-owned merge gate. Useful when branch protection is unavailable
-# (or as defense in depth alongside it) — this workflow is the enforcement
-# point: it squash-merges a PR only when
-#   1. a <!-- split-verifier-pass --> comment exists,
-#   2. no blocking signal is present (labels, stop comments, blocker marker),
-#   3. every required verification job (scripts/merge-gate-policy.mjs
-#      REQUIRED_CHECKS) succeeded for the PR's CURRENT head SHA.
-#
-# It re-evaluates whenever a verification workflow completes, so a verifier
-# pass posted before CI finished does not need to be reposted.
+# (or as defense in depth alongside it). The workflow resolves an open PR
+# before checking out the repository, then evaluates current-head evidence.
 #
 # ADAPTER REQUIRED:
 #   1. Install scripts/merge-gate-policy.mjs and set REQUIRED_CHECKS to your
-#      repository's verify job names (the gate fails closed until you do).
+#      repository's required job names (the gate fails closed until you do).
 #   2. Replace the workflow_run.workflows list below with the workflow names
-#      that run those verify jobs.
+#      that can complete the required check set.
 #
-# Merge is suppressed when any of these are present on the linked issue:
-#   - label: merge:human-required  (deliberate tier declaration)
-#   - label: hold                  (runtime pause)
-#   - label: needs-human           (runtime interrupt)
-#   - any PR comment containing the word: stop
+# Multiple upstream workflows may complete near each other. A PR/head
+# concurrency key keeps at most one policy evaluation running and one pending;
+# newer events replace older pending work. Events with no matching open PR
+# stop in the resolver job and never check out the repository.
 
 on:
     issue_comment:
@@ -36,25 +28,107 @@ on:
         types: [completed]
 
 permissions:
+    checks: read
     contents: write
     pull-requests: write
     issues: write
 
 jobs:
+    resolve-candidates:
+        name: Resolve candidate PR
+        if: github.event_name == 'workflow_run' || github.event.issue.pull_request != null
+        runs-on: ubuntu-latest
+        outputs:
+            pr_numbers: ${{ steps.resolve.outputs.pr_numbers }}
+            head_sha: ${{ steps.resolve.outputs.head_sha }}
+        steps:
+            - name: Resolve open PRs before checkout
+              id: resolve
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const owner = context.repo.owner;
+                      const repo = context.repo.repo;
+                      const candidates = [];
+                      let eventHeadSha = '';
+
+                      if (context.eventName === 'issue_comment') {
+                        const commentBody = context.payload.comment.body ?? '';
+                        if (!commentBody.includes('<!-- split-verifier-pass -->')) {
+                          core.info('[auto-merge] comment is not a verifier pass — skipping');
+                          core.setOutput('pr_numbers', '[]');
+                          core.setOutput('head_sha', 'none');
+                          return;
+                        }
+
+                        const prNumber = context.payload.issue.number;
+                        const { data: pr } = await github.rest.pulls.get({
+                          owner,
+                          repo,
+                          pull_number: prNumber,
+                        });
+                        if (pr.state === 'open') {
+                          candidates.push(prNumber);
+                          eventHeadSha = pr.head.sha;
+                        }
+                      } else {
+                        eventHeadSha = context.payload.workflow_run.head_sha;
+                        const payloadPrs = context.payload.workflow_run.pull_requests ?? [];
+
+                        for (const candidate of payloadPrs) {
+                          const { data: pr } = await github.rest.pulls.get({
+                            owner,
+                            repo,
+                            pull_number: candidate.number,
+                          });
+                          if (pr.state === 'open' && pr.head.sha === eventHeadSha) {
+                            candidates.push(pr.number);
+                          }
+                        }
+
+                        if (!candidates.length) {
+                          const open = await github.paginate(github.rest.pulls.list, {
+                            owner,
+                            repo,
+                            state: 'open',
+                            per_page: 100,
+                          });
+                          for (const pr of open) {
+                            if (pr.head.sha === eventHeadSha) {
+                              candidates.push(pr.number);
+                            }
+                          }
+                        }
+                      }
+
+                      const unique = [...new Set(candidates)];
+                      if (!unique.length) {
+                        core.info(
+                          `[auto-merge] no open PR for event head ${eventHeadSha || 'n/a'} — skipping before checkout`
+                        );
+                      }
+
+                      core.setOutput('pr_numbers', JSON.stringify(unique));
+                      core.setOutput('head_sha', eventHeadSha || 'none');
+
     auto-merge:
         name: >-
             Auto Merge /
-            ${{ github.event.issue && format('pr #{0}', github.event.issue.number) || (github.event.workflow_run && github.event.workflow_run.head_sha) || 'n/a' }}
-        # Run on PR comments (not plain issue comments) and on completed
-        # verification workflow runs.
-        if: github.event_name == 'workflow_run' || github.event.issue.pull_request != null
+            ${{ needs.resolve-candidates.outputs.head_sha }}
+        needs: resolve-candidates
+        if: needs.resolve-candidates.outputs.pr_numbers != '[]'
         runs-on: ubuntu-latest
+        concurrency:
+            group: policy-auto-merge-${{ needs.resolve-candidates.outputs.head_sha }}
+            cancel-in-progress: false
         steps:
             - name: Checkout policy module
               uses: actions/checkout@v4
 
             - name: Evaluate merge gate and auto-merge
               uses: actions/github-script@v7
+              env:
+                  CANDIDATE_PRS: ${{ needs.resolve-candidates.outputs.pr_numbers }}
               with:
                   script: |
                       const { decideMerge } = await import(
@@ -63,77 +137,77 @@ jobs:
 
                       const owner = context.repo.owner;
                       const repo = context.repo.repo;
-
-                      // Resolve candidate PR numbers for this event.
-                      const candidates = [];
-                      if (context.eventName === 'issue_comment') {
-                        const commentBody = context.payload.comment.body ?? '';
-                        if (!commentBody.includes('<!-- split-verifier-pass -->')) {
-                          core.info('[auto-merge] comment is not a verifier pass — skipping');
-                          return;
-                        }
-                        candidates.push(context.payload.issue.number);
-                      } else {
-                        const headSha = context.payload.workflow_run.head_sha;
-                        const prs = context.payload.workflow_run.pull_requests ?? [];
-                        for (const pr of prs) candidates.push(pr.number);
-                        if (!candidates.length) {
-                          // Fallback: find open PRs whose head matches the run SHA.
-                          const open = await github.paginate(github.rest.pulls.list, {
-                            owner, repo, state: 'open', per_page: 100,
-                          });
-                          for (const pr of open) {
-                            if (pr.head.sha === headSha) candidates.push(pr.number);
-                          }
-                        }
-                        if (!candidates.length) {
-                          core.info(`[auto-merge] no open PR for run head ${headSha} — skipping`);
-                          return;
-                        }
-                      }
+                      const candidates = JSON.parse(process.env.CANDIDATE_PRS || '[]');
 
                       for (const prNumber of candidates) {
                         const { data: pr } = await github.rest.pulls.get({
-                          owner, repo, pull_number: prNumber,
+                          owner,
+                          repo,
+                          pull_number: prNumber,
                         });
 
-                        // Resolve linked issue number from branch name: issue-<number>-<slug>
+                        if (pr.state !== 'open') {
+                          core.info(`[auto-merge] pr=${prNumber} is no longer open — skipping`);
+                          continue;
+                        }
+
                         const branchMatch = pr.head.ref.match(/^issue-(\d+)-/);
                         if (!branchMatch) {
-                          core.info(`[auto-merge] pr=${prNumber} branch=${pr.head.ref} — cannot parse issue number, skipping`);
+                          core.info(
+                            `[auto-merge] pr=${prNumber} branch=${pr.head.ref} — cannot parse issue number, skipping`
+                          );
                           continue;
                         }
                         const issueNumber = parseInt(branchMatch[1], 10);
 
                         const { data: issue } = await github.rest.issues.get({
-                          owner, repo, issue_number: issueNumber,
+                          owner,
+                          repo,
+                          issue_number: issueNumber,
                         });
-                        const issueLabels = (issue.labels || []).map(l => l.name);
+                        const issueLabels = (issue.labels || []).map(label => label.name);
 
                         const comments = await github.paginate(github.rest.issues.listComments, {
-                          owner, repo, issue_number: prNumber, per_page: 100,
+                          owner,
+                          repo,
+                          issue_number: prNumber,
+                          per_page: 100,
                         });
-                        // Pass attestations must be bound to the commit they audited via a
-                        // `<!-- split-verifier-sha: <sha> -->` line; the policy module
-                        // rejects unbound or stale attestations.
                         const SHA_LINE = /<!--\s*split-verifier-sha:\s*([0-9a-fA-F]{7,40})\s*-->/;
                         const verifierPasses = comments
-                          .filter(c => (c.body ?? '').includes('<!-- split-verifier-pass -->'))
-                          .map(c => ({
-                            author: c.user?.login ?? '',
-                            sha: (c.body.match(SHA_LINE)?.[1] ?? null),
+                          .filter(comment =>
+                            (comment.body ?? '').includes('<!-- split-verifier-pass -->')
+                          )
+                          .map(comment => ({
+                            author: comment.user?.login ?? '',
+                            sha: comment.body.match(SHA_LINE)?.[1] ?? null,
                           }));
-                        const hasBlockerMarker = comments.some(c =>
-                          (c.body ?? '').includes('<!-- split-verifier-blocker -->'));
-                        const hasStopComment = comments.some(c =>
-                          (c.body ?? '').toLowerCase().includes('stop') &&
-                          !c.body.includes('<!-- agent-job-status') &&
-                          !c.body.includes('<!-- split-'));
+                        const hasBlockerMarker = comments.some(comment =>
+                          (comment.body ?? '').includes('<!-- split-verifier-blocker -->')
+                        );
+                        const hasStopComment = comments.some(comment =>
+                          /\bstop\b/i.test(comment.body ?? '') &&
+                          !(comment.body ?? '').includes('<!-- agent-job-status') &&
+                          !(comment.body ?? '').includes('<!-- split-')
+                        );
 
-                        // Check runs for the PR's CURRENT head SHA only.
-                        const checkRuns = await github.paginate(github.rest.checks.listForRef, {
-                          owner, repo, ref: pr.head.sha, per_page: 100,
-                        });
+                        let checkRuns;
+                        try {
+                          checkRuns = await github.paginate(github.rest.checks.listForRef, {
+                            owner,
+                            repo,
+                            ref: pr.head.sha,
+                            per_page: 100,
+                          });
+                        } catch (error) {
+                          if (error.status === 403) {
+                            throw new Error(
+                              'Unable to read PR check runs. Generated policy-auto-merge requires `permissions: checks: read`.'
+                            );
+                          }
+                          throw error;
+                        }
+
                         const observedRuns = checkRuns.map(run => ({
                           name: run.name,
                           headSha: pr.head.sha,
@@ -154,62 +228,75 @@ jobs:
 
                         if (!decision.merge) {
                           core.info(`[auto-merge] pr=${prNumber} not mergeable — ${decision.reason}`);
-                          if (decision.reason.startsWith('blocking-label:') &&
-                              context.eventName === 'issue_comment') {
+                          if (
+                            decision.reason.startsWith('blocking-label:') &&
+                            context.eventName === 'issue_comment'
+                          ) {
                             const label = decision.reason.split(':')[1];
                             await github.rest.issues.createComment({
-                              owner, repo, issue_number: prNumber,
+                              owner,
+                              repo,
+                              issue_number: prNumber,
                               body: `<!-- auto-merge-suppressed -->\n**Auto-merge suppressed** — issue #${issueNumber} has label \`${label}\`. A human must review and merge this PR.`,
                             });
                           }
                           continue;
                         }
 
-                        // Strip [TASK] prefix and any conventional commit prefix from PR title
-                        // so the squash commit message is clean and not doubled.
                         const strippedTitle = pr.title
                           .replace(/^\[TASK\]\s*/i, '')
                           .replace(/^[a-z]+\(issue-\d+\):\s*/i, '')
                           .trim();
                         const commitMessage = `feat(issue-${issueNumber}): ${strippedTitle}`;
 
-                        core.info(`[auto-merge] pr=${prNumber} issue=${issueNumber} merging — "${commitMessage}"`);
+                        core.info(
+                          `[auto-merge] pr=${prNumber} issue=${issueNumber} merging — "${commitMessage}"`
+                        );
 
                         try {
                           await github.rest.pulls.merge({
-                            owner, repo,
+                            owner,
+                            repo,
                             pull_number: prNumber,
                             merge_method: 'squash',
                             commit_title: commitMessage,
                             commit_message: '',
                           });
-                        } catch (mergeErr) {
-                          // 405 means a merge is already in progress or just completed
-                          if (mergeErr.status === 405) {
-                            core.info(`[auto-merge] pr=${prNumber} — 405 Merge already in progress, treating as success`);
+                        } catch (error) {
+                          if (error.status === 405) {
+                            core.info(
+                              `[auto-merge] pr=${prNumber} — merge already in progress, treating as success`
+                            );
                           } else {
-                            throw mergeErr;
+                            throw error;
                           }
                         }
 
-                        // Delete the feature branch
                         try {
                           await github.rest.git.deleteRef({
-                            owner, repo,
+                            owner,
+                            repo,
                             ref: `heads/${pr.head.ref}`,
                           });
                           core.info(`[auto-merge] deleted branch ${pr.head.ref}`);
-                        } catch (e) {
-                          core.warning(`[auto-merge] could not delete branch: ${e.message}`);
+                        } catch (error) {
+                          core.warning(
+                            `[auto-merge] could not delete branch: ${error.message}`
+                          );
                         }
 
-                        // Transition linked issue to done
                         await github.rest.issues.removeLabel({
-                          owner, repo, issue_number: issueNumber, name: 'in-review',
+                          owner,
+                          repo,
+                          issue_number: issueNumber,
+                          name: 'in-review',
                         }).catch(() => {});
 
                         await github.rest.issues.addLabels({
-                          owner, repo, issue_number: issueNumber, labels: ['done'],
+                          owner,
+                          repo,
+                          issue_number: issueNumber,
+                          labels: ['done'],
                         });
 
                         core.info(`[auto-merge] issue=${issueNumber} labeled done`);
