@@ -84,7 +84,7 @@ The command refuses unless the automation-created remote issue branch already ex
 The split contract is three visible comment markers, and it is provider-neutral — CI gates read the markers, not the executor:
 
 - `<!-- split-planner-complete -->` — closes the planner's handoff comment on the issue. **The builder must not start until this marker exists.** Entering `in-progress` is not sufficient.
-- `<!-- split-verifier-pass -->` / `<!-- split-verifier-blocker -->` — the verifier's verdict, posted on the PR after auditing CI results. A pass must also carry `<!-- split-verifier-sha: <head-sha> -->` naming the exact commit audited — the gates reject unbound or stale attestations, so a new push always requires a fresh audit. `policy-auto-merge` and `policy-verifier-gate` act on these.
+- `<!-- split-verifier-pass -->` / `<!-- split-verifier-blocker -->` — the verifier's verdict, posted on the PR after auditing CI results. **Both verdicts** must also carry `<!-- split-verifier-sha: <head-sha> -->` naming the exact commit audited. For the unchanged current head, the latest valid authorized verdict wins; a new push makes every earlier bound verdict stale and requires a fresh pass. Legacy unbound blockers remain fail closed until a newer authorized current-head pass supersedes them. `policy-auto-merge` and `policy-verifier-gate` act on these.
 
 Role boundaries: the planner produces the handoff and never implements. The builder implements only what the handoff covers and **ends at `git push`** — it submits work for verification, it does not conduct it. The verifier audits CI checks and evidence and never adds implementation.
 

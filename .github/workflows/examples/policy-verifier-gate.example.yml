@@ -42,7 +42,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { evaluateVerifierAttestation } = await import(
+            const { parseVerifierComments, evaluateVerifierAttestation } = await import(
               `${process.env.GITHUB_WORKSPACE}/scripts/merge-gate-policy.mjs`
             );
 
@@ -106,36 +106,42 @@ jobs:
               owner, repo, issue_number: prNumber, per_page: 100,
             });
 
-            const bodies = comments.map(c => c.body ?? '');
-            const SHA_LINE = /<!--\s*split-verifier-sha:\s*([0-9a-fA-F]{7,40})\s*-->/;
-            const verifierPasses = comments
-              .filter(c => (c.body ?? '').includes('<!-- split-verifier-pass -->'))
-              .map(c => ({
-                author: c.user?.login ?? '',
-                sha: (c.body.match(SHA_LINE)?.[1] ?? null),
-              }));
-            const hasBlocker = bodies.some(b => b.includes('<!-- split-verifier-blocker -->'));
+            const orderedComments = [...comments].sort((left, right) => {
+              const createdOrder = String(left.created_at ?? '').localeCompare(
+                String(right.created_at ?? '')
+              );
+              if (createdOrder) return createdOrder;
+              const leftIdentity = String(left.node_id ?? left.id ?? '');
+              const rightIdentity = String(right.node_id ?? right.id ?? '');
+              return leftIdentity.localeCompare(rightIdentity);
+            });
+            const verifierVerdicts = parseVerifierComments(
+              orderedComments.map((comment, sequence) => ({
+                body: comment.body ?? '',
+                author: comment.user?.login ?? '',
+                sequence,
+              }))
+            );
+            const attestation = evaluateVerifierAttestation({
+              verifierVerdicts,
+              headSha,
+            });
 
-            const attestation = evaluateVerifierAttestation({ verifierPasses, headSha });
-
-            if (hasBlocker) {
-              await postCheck('failure', 'Verifier blocker present', [
-                'The verifier posted `<!-- split-verifier-blocker -->` on this PR.',
-                '',
-                'Merge is blocked until the blocker is resolved and the verifier re-runs with a pass.',
-              ].join('\n'));
-            } else if (!attestation.ok) {
+            if (!attestation.ok) {
               const detail = {
-                'no-verifier-pass': 'No `<!-- split-verifier-pass -->` marker found on this PR.',
+                'no-verifier-pass': 'No current-head verifier pass was found on this PR.',
                 'verifier-pass-not-sha-bound': 'A pass marker exists but carries no `<!-- split-verifier-sha: <sha> -->` line — unbound attestations are not trusted.',
                 'verifier-pass-stale-sha': `A pass attestation exists but is bound to an older commit — the current head ${headSha.slice(0, 7)} has not been audited.`,
                 'verifier-not-authorized': 'A bound pass attestation exists but its author is not in VERIFIER_ALLOWLIST (scripts/merge-gate-policy.mjs).',
+                'verifier-blocker-current-head': `The latest authorized verdict for current head ${headSha.slice(0, 7)} is a blocker.`,
+                'verifier-blocker-legacy-unbound': 'The latest relevant verdict is a legacy unbound blocker. A newer authorized current-head pass is required.',
+                'verifier-verdict-malformed': 'The latest applicable verifier report has conflicting or malformed verdict evidence.',
               }[attestation.reason] ?? attestation.reason;
               await postCheck('failure', 'Awaiting valid verifier attestation', [
                 detail,
                 '',
-                'The verifier must audit the current head and post a pass comment containing both markers.',
+                'The verifier must audit the current head and post a newer valid pass containing both markers.',
               ].join('\n'));
             } else {
-              await postCheck('success', 'Verifier gate open', `Verifier attestation bound to head ${headSha.slice(0, 7)} confirmed. No active blockers. Safe to merge.`);
+              await postCheck('success', 'Verifier gate open', `The latest valid verifier verdict for head ${headSha.slice(0, 7)} is a pass. Safe to merge.`);
             }

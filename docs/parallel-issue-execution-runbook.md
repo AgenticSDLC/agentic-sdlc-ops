@@ -206,8 +206,11 @@ For combined topology:
 For split topology:
 
 - CI remains the verification floor.
-- A pass requires both `<!-- split-verifier-pass -->` and a `<!-- split-verifier-sha: <head-sha> -->` marker.
-- Any new push makes the earlier attestation stale.
+- Both pass and blocker reports require their verdict marker plus `<!-- split-verifier-sha: <head-sha> -->`.
+- For one unchanged current head, the latest valid authorized verdict wins. A later pass records the re-audit that resolves an earlier blocker without rewriting history; a later blocker closes an earlier pass.
+- Any new push makes earlier bound verdicts stale and keeps the new head closed until its own valid pass.
+- Legacy unbound blockers remain fail closed until a newer authorized current-head pass supersedes them; a later legacy blocker closes the gate again.
+- When an allowlist is configured, it applies to both new SHA-bound verdict types. Unauthorized bound reports cannot authorize or permanently block a merge.
 
 Inspect final PR state:
 
@@ -250,6 +253,8 @@ Keep open-issue worktrees intact so follow-up pushes stay isolated.
 | One PR creates many repeated policy runs | Workflow event design | Coalesce by PR and head SHA or trigger from one authoritative aggregate gate |
 | Combined PR is green but policy asks for a split verifier pass | Topology policy | Treat as generated policy mismatch; do not fabricate an attestation |
 | Split verifier pass is rejected after a push | Evidence freshness | Audit the new head and publish a new SHA-bound attestation |
+| Historical split blocker still blocks after a fixed-head pass | Verifier verdict policy | Confirm both workflows use the shared ordered verdict evaluator; retain the old report and post a newer valid current-head pass |
+| Legacy blocker has no SHA | Upgrade compatibility | Leave the audit history intact; a newer authorized current-head pass supersedes it, while a later legacy blocker closes the gate again |
 | Auto-merge is blocked by hold or human-required policy | Human control | Leave the PR open until the signal is explicitly resolved |
 | Local tests pass but required CI is missing or red | Verification | Task remains unverified; do not self-certify |
 

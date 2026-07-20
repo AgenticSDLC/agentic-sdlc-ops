@@ -91,10 +91,12 @@ test("verifier pass comments bind the attestation to the audited head SHA", () =
 
   const blocker = buildVerifierBlockerComment(
     [{ name: "verify", bucket: "fail", link: "http://x" }],
+    headSha,
     ["scope creep"]
   );
   assert.ok(blocker.includes(SPLIT_MARKERS.verifierBlocker));
-  assert.ok(!blocker.includes("split-verifier-sha"));
+  assert.ok(blocker.includes(`<!-- split-verifier-sha: ${headSha} -->`));
+  assert.ok(!blocker.includes(SPLIT_MARKERS.verifierPass));
   assert.ok(blocker.includes("verify: fail"));
   assert.ok(blocker.includes("scope creep"));
 });

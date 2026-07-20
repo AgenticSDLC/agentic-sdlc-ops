@@ -197,15 +197,26 @@ If `agent-verifier` is used, the verifier audits — it does not rerun or re-imp
 - Reports pass or blocker status on the PR
 
 Verifier completion markers (must appear in the raw comment body, posted on the PR):
-- Pass — **two** markers, together: `<!-- split-verifier-pass -->` plus `<!-- split-verifier-sha: <head-sha> -->` binding the attestation to the audited commit. The policy gates reject a pass with no SHA line (unbound) or with a SHA older than the current head (stale) — a new commit always requires a fresh audit. Get the SHA with `gh pr view <pr> --json headRefOid --jq .headRefOid`.
-- `<!-- split-verifier-blocker -->` — merge is blocked; `policy-verifier-gate` will report failure. No SHA line needed.
+- Pass — **two** markers, together: `<!-- split-verifier-pass -->` plus `<!-- split-verifier-sha: <head-sha> -->` binding the attestation to the audited commit.
+- Blocker — **two** markers, together: `<!-- split-verifier-blocker -->` plus the same `<!-- split-verifier-sha: <head-sha> -->` binding the finding to the audited commit.
+
+Capture the SHA before the audit with `gh pr view <pr> --json headRefOid --jq .headRefOid`, then read it again immediately before posting either outcome. If the head moved, post no verdict and re-audit the new head.
+
+Verifier reports are append-only audit history; do not edit or delete an earlier finding to reopen the gate. The policy evaluates ordered reports against the current PR head:
+
+- the latest valid authorized current-head verdict wins, so blocker then pass resolves to pass and pass then blocker resolves to blocker;
+- a verdict bound to an older head is retained as stale history and does not decide the new head;
+- a new push is still closed until a fresh current-head pass is posted; and
+- a legacy blocker with no SHA remains fail closed until a newer authorized current-head pass supersedes it. A later legacy unbound blocker closes the gate again.
 
 If `policy-auto-merge` is configured with `AGENTIC_AUTO_MERGE_MODE=auto`, a
-valid bound pass triggers merge once required checks are green. Split topology
+latest valid bound pass triggers merge once required checks are green. Split topology
 always requires this attestation; combined topology does not. Repositories
 that want the attestation to come from an independent identity (not the
 builder's account) can set `VERIFIER_ALLOWLIST` in
-`scripts/merge-gate-policy.mjs` — see
+`scripts/merge-gate-policy.mjs`. The allowlist applies symmetrically to new
+SHA-bound passes and blockers; the legacy-unbound blocker compatibility rule
+still fails closed regardless of author. See
 `docs/operations/SETUP-PREREQS.md`.
 
 The verifier role is separate from implementation. It confirms evidence exists; it does not add new implementation work.

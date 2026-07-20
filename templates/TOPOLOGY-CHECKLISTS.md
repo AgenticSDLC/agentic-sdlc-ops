@@ -78,7 +78,9 @@ Use these short checklists alongside:
 - [ ] Required evidence artifacts exist
 - [ ] PR diff matches the issue Target Files and the planner handoff scope
 - [ ] Reuse audit performed: every added function/helper/component searched against the codebase and, when defined, the adapter's Reuse Map; duplicates of existing implementations are blockers unless justified in the handoff or PR
-- [ ] Pass or blocker status reported on the PR with `<!-- split-verifier-pass -->` or `<!-- split-verifier-blocker -->`
+- [ ] PR head SHA captured before the audit and re-read immediately before reporting; if it moved, no stale verdict was posted
+- [ ] Pass or blocker status reported on the PR with `<!-- split-verifier-pass -->` or `<!-- split-verifier-blocker -->` **and** `<!-- split-verifier-sha: <head-sha> -->`
+- [ ] Any new push received a fresh current-head pass; same-head recovery used a newer verdict instead of editing historical reports
 - [ ] Verification reporting kept separate from implementation scope
 
 ## Pause And Escalation Checklist

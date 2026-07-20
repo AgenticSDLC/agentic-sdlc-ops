@@ -45,35 +45,38 @@ gh pr checks <pr-number> --json name,state,bucket,link
 ## Report — required final step
 
 Post exactly one report comment **on the PR** (the surface the policy gates
-read). The markers must appear in the raw comment body.
+read). The markers must appear in the raw comment body. Capture the current
+head before auditing:
+
+```bash
+AUDITED_HEAD_SHA=$(gh pr view <pr-number> --json headRefOid --jq .headRefOid)
+```
 
 **Pass** — all checks green, evidence present, scope clean. A pass is an
 attestation about ONE specific commit: capture the head SHA you audited and
 bind the report to it — the gates reject unbound or stale attestations, so a
 pass without the SHA line does nothing.
 
-```bash
-HEAD_SHA=$(gh pr view <pr-number> --json headRefOid --jq .headRefOid)
-```
-
 ```
 ## Verifier Report — Pass
 <summary of checks and evidence audited>
 <!-- split-verifier-pass -->
-<!-- split-verifier-sha: $HEAD_SHA -->
+<!-- split-verifier-sha: $AUDITED_HEAD_SHA -->
 ```
 
-Before posting, confirm the head has not moved since you audited it — if it
-has, re-audit the new head instead of attesting the old one.
-
-**Blocker** — anything failed or missing (no SHA line needed; blockers always
-block):
+**Blocker** — anything failed or missing. A blocker is also a verdict about
+one audited commit and must carry the same SHA line:
 
 ```
 ## Verifier Report — Blocker
 <each blocker, concretely, so the builder can act>
 <!-- split-verifier-blocker -->
+<!-- split-verifier-sha: $AUDITED_HEAD_SHA -->
 ```
+
+Immediately before posting either outcome, read the current PR head again. If
+it differs from `AUDITED_HEAD_SHA`, post no verdict and re-audit the new head.
+Do not mark the PR ready or advance lifecycle from a stale observation.
 
 Post with:
 
@@ -81,6 +84,15 @@ Post with:
 gh pr comment <pr-number> --body-file <report-file>
 ```
 
-If `policy-auto-merge` is configured, a pass marker triggers the merge once
-required checks are green; a blocker marker blocks the `policy-verifier-gate`
-check. You add no implementation work in either case.
+Verifier history is append-only. Do not edit or delete an earlier report to
+resolve it. For the unchanged current head, the latest valid authorized
+verdict wins, so a later pass records the re-audit that resolves an earlier
+blocker and a later blocker closes an earlier pass. A push makes every bound
+verdict for the prior head stale and requires a fresh current-head pass.
+Legacy unbound blockers remain fail closed until superseded by a newer
+authorized current-head pass.
+
+If `policy-auto-merge` is configured, the latest valid current-head pass
+triggers the merge once required checks are green; an active blocker closes
+the `policy-verifier-gate` check. You add no implementation work in either
+case.

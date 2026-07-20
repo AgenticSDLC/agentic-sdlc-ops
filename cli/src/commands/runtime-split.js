@@ -324,6 +324,7 @@ async function runVerifierPhase(rootDir, args, config, controlPlane, current, co
   }
 
   const prNumber = prLookup.pullRequest.number;
+  const auditedHeadSha = prLookup.pullRequest.headRefOid;
   const { checks } = controlPlane.capabilities.getPullRequestChecks(rootDir, prNumber);
 
   if (!checks.length) {
@@ -341,11 +342,32 @@ async function runVerifierPhase(rootDir, args, config, controlPlane, current, co
     return;
   }
 
+  const refreshedPr = controlPlane.capabilities.getPullRequestForBranch(
+    rootDir,
+    prepared.branch
+  );
+  if (
+    !refreshedPr.pullRequest ||
+    refreshedPr.pullRequest.headRefOid !== auditedHeadSha
+  ) {
+    const currentHead = refreshedPr.pullRequest?.headRefOid;
+    printDetail(
+      "Verdict",
+      currentHead
+        ? `not posted — head moved from ${String(auditedHeadSha).slice(0, 7)} to ${String(currentHead).slice(0, 7)}`
+        : "not posted — the audited PR is no longer open"
+    );
+    printFooter(
+      "The verifier audit became stale before its verdict could be posted. Rerun the verifier against the current open PR head."
+    );
+    return;
+  }
+
   if (failing.length) {
     controlPlane.capabilities.addIssueComment(
       rootDir,
       prNumber,
-      buildVerifierBlockerComment(failing)
+      buildVerifierBlockerComment(failing, auditedHeadSha)
     );
     printDetail("Verdict", `blocker — ${failing.length} failing check(s)`);
     printFooter("Verifier posted a blocker marker on the PR. Fix the failures and rerun.");
@@ -355,7 +377,6 @@ async function runVerifierPhase(rootDir, args, config, controlPlane, current, co
   // All checks green — post the pass attestation on the PR (the surface the
   // policy gates read), bound to the audited head SHA, and advance the
   // lifecycle. A later commit invalidates this attestation at the gates.
-  const auditedHeadSha = prLookup.pullRequest.headRefOid;
   controlPlane.capabilities.markPullRequestReady(rootDir, prNumber);
   controlPlane.capabilities.addIssueComment(
     rootDir,
