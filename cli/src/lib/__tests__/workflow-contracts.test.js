@@ -53,3 +53,22 @@ test("auto-merge can read checks and coalesces evaluations by head SHA", () => {
   assert.match(source, /mergeMode:\s*process\.env\.MERGE_MODE/);
   assert.match(source, /state:\s*'closed'/);
 });
+
+test("both verifier policy workflows use one ordered verdict parser", () => {
+  for (const fileName of [
+    "policy-auto-merge.example.yml",
+    "policy-verifier-gate.example.yml",
+  ]) {
+    const source = readWorkflow(fileName);
+
+    assert.match(source, /parseVerifierComments/);
+    assert.match(source, /verifierVerdicts/);
+    assert.match(source, /created_at/);
+    assert.match(source, /node_id/);
+    assert.match(source, /sequence/);
+    assert.doesNotMatch(source, /\bhasBlocker\b/);
+    assert.doesNotMatch(source, /\bhasBlockerMarker\b/);
+    assert.doesNotMatch(source, /\bSHA_LINE\b/);
+    assert.doesNotMatch(source, /body\.match\(/);
+  }
+});

@@ -71,21 +71,29 @@ default labels remain.
 
 ## 4. Optional: Independent Verifier Identity (split topology)
 
-By default, any account may post the verifier pass attestation — fine for a
-single operator, but it means the builder's own account could attest its own
-work. The gates already enforce **commit binding** (a pass must name the
-exact head SHA it audited via `<!-- split-verifier-sha: <sha> -->`, and a new
-push invalidates it). To additionally enforce **who** may attest:
+By default, any account may post a new verifier pass or blocker — fine for a
+single operator, but it means the builder's own account could submit a
+verdict on its work. The gates already enforce **commit binding** (both new
+verdict types must name the exact head SHA they audited via
+`<!-- split-verifier-sha: <sha> -->`, and a new push invalidates them). To
+additionally enforce **who** may report:
 
 1. Create a separate identity the builder cannot act as — a machine-user
    account with its own PAT, or a GitHub App.
 2. Run the verifier role authenticated as that identity (e.g.
    `GH_TOKEN=<verifier-pat> agentic-sdlc runtime split --issue <n> --role verifier`).
 3. List the identity in `VERIFIER_ALLOWLIST` in `scripts/merge-gate-policy.mjs`.
-   While the list is non-empty, pass attestations from any other author are
-   rejected with `verifier-not-authorized`.
+   While the list is non-empty, it applies symmetrically to new SHA-bound pass
+   and blocker verdicts. An unauthorized author can neither authorize a merge
+   nor create a permanent bound blocker.
 
 Leave `VERIFIER_ALLOWLIST` empty to skip identity enforcement.
+
+Compatibility exception: historical blocker comments without a SHA remain
+fail closed regardless of author until a newer authorized current-head pass
+supersedes them. A later legacy unbound blocker closes the gate again. This
+preserves upgraded audit history without requiring comments to be edited or
+deleted.
 
 ## 5. Publish-Time Label Rules
 

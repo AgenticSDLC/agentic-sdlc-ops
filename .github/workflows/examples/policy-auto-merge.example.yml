@@ -133,7 +133,7 @@ jobs:
                   MERGE_MODE: ${{ vars.AGENTIC_AUTO_MERGE_MODE || 'auto' }}
               with:
                   script: |
-                      const { decideMerge } = await import(
+                      const { parseVerifierComments, decideMerge } = await import(
                         `${process.env.GITHUB_WORKSPACE}/scripts/merge-gate-policy.mjs`
                       );
 
@@ -175,17 +175,21 @@ jobs:
                           issue_number: prNumber,
                           per_page: 100,
                         });
-                        const SHA_LINE = /<!--\s*split-verifier-sha:\s*([0-9a-fA-F]{7,40})\s*-->/;
-                        const verifierPasses = comments
-                          .filter(comment =>
-                            (comment.body ?? '').includes('<!-- split-verifier-pass -->')
-                          )
-                          .map(comment => ({
+                        const orderedComments = [...comments].sort((left, right) => {
+                          const createdOrder = String(left.created_at ?? '').localeCompare(
+                            String(right.created_at ?? '')
+                          );
+                          if (createdOrder) return createdOrder;
+                          const leftIdentity = String(left.node_id ?? left.id ?? '');
+                          const rightIdentity = String(right.node_id ?? right.id ?? '');
+                          return leftIdentity.localeCompare(rightIdentity);
+                        });
+                        const verifierVerdicts = parseVerifierComments(
+                          orderedComments.map((comment, sequence) => ({
+                            body: comment.body ?? '',
                             author: comment.user?.login ?? '',
-                            sha: comment.body.match(SHA_LINE)?.[1] ?? null,
-                          }));
-                        const hasBlockerMarker = comments.some(comment =>
-                          (comment.body ?? '').includes('<!-- split-verifier-blocker -->')
+                            sequence,
+                          }))
                         );
                         const hasStopComment = comments.some(comment =>
                           /\bstop\b/i.test(comment.body ?? '') &&
@@ -220,8 +224,7 @@ jobs:
                         const decision = decideMerge({
                           isOpen: pr.state === 'open',
                           isDraft: Boolean(pr.draft),
-                          verifierPasses,
-                          hasBlockerMarker,
+                          verifierVerdicts,
                           hasStopComment,
                           issueLabels,
                           headSha: pr.head.sha,

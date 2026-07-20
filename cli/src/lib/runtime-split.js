@@ -162,7 +162,7 @@ function buildVerifierPassComment(checks, headSha) {
   return lines.join("\n");
 }
 
-function buildVerifierBlockerComment(failingChecks, extraFindings = []) {
+function buildVerifierBlockerComment(failingChecks, headSha, extraFindings = []) {
   const lines = [
     "## Verifier Report — Blocker",
     "",
@@ -185,7 +185,8 @@ function buildVerifierBlockerComment(failingChecks, extraFindings = []) {
   lines.push(
     "Resolve the blockers, push to the issue branch, and rerun the verifier.",
     "",
-    SPLIT_MARKERS.verifierBlocker
+    SPLIT_MARKERS.verifierBlocker,
+    buildVerifierShaLine(headSha)
   );
   return lines.join("\n");
 }

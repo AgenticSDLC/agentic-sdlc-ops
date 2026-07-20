@@ -25,54 +25,160 @@ export const MERGE_MODES = ["auto", "human-required", "disabled"]
 /**
  * Optional verifier identity enforcement. Empty = any author may attest
  * (single-operator mode). To require an independent verifier, list the
- * GitHub logins allowed to post pass attestations (e.g. a machine account
- * or bot the builder cannot act as) — see docs/operations/SETUP-PREREQS.md.
+ * identities allowed to post new SHA-bound verifier verdicts (e.g. a
+ * machine account or bot the builder cannot act as) — see
+ * docs/operations/SETUP-PREREQS.md.
  */
 export const VERIFIER_ALLOWLIST = []
 
+const PASS_MARKER = "<!-- split-verifier-pass -->"
+const BLOCKER_MARKER = "<!-- split-verifier-blocker -->"
+const SHA_MARKER = /<!--\s*split-verifier-sha:\s*([0-9a-fA-F]{7,40})\s*-->/g
+const VALID_SHA = /^[0-9a-f]{7,40}$/
+
 /**
- * A verifier pass attestation is only trusted when it is bound to the exact
- * commit it audited. Pass comments must contain BOTH markers:
+ * Convert ordered provider comments into provider-neutral verifier verdicts.
+ * Provider adapters own deterministic comment ordering and supply a unique
+ * sequence. This parser owns marker semantics for every policy consumer.
  *
- *   <!-- split-verifier-pass -->
- *   <!-- split-verifier-sha: <sha> -->
- *
- * An unbound pass marker (no sha line) never satisfies the gate: it would
- * keep authorizing merges of commits nobody audited.
+ * @param {Array<{body: string, author: string, sequence: number}>} comments
+ * @returns {Array<{
+ *   kind: "pass"|"blocker"|"malformed",
+ *   author: string,
+ *   sha: string|null,
+ *   sequence: number,
+ *   malformedReason: string|null,
+ * }>}
+ */
+export function parseVerifierComments(comments = []) {
+  return comments.flatMap((comment) => {
+    const body = typeof comment.body === "string" ? comment.body : ""
+    const hasPass = body.includes(PASS_MARKER)
+    const hasBlocker = body.includes(BLOCKER_MARKER)
+    if (!hasPass && !hasBlocker) return []
+
+    const shaValues = new Set(
+      [...body.matchAll(SHA_MARKER)].map((match) => match[1].toLowerCase()),
+    )
+    const sha = shaValues.size === 1 ? [...shaValues][0] : null
+    let kind = hasPass ? "pass" : "blocker"
+    let malformedReason = null
+
+    if (hasPass && hasBlocker) {
+      kind = "malformed"
+      malformedReason = "conflicting-verdict-markers"
+    } else if (shaValues.size > 1) {
+      kind = "malformed"
+      malformedReason = "conflicting-sha-markers"
+    }
+
+    return [{
+      kind,
+      author: typeof comment.author === "string" ? comment.author : "",
+      sha,
+      sequence: comment.sequence,
+      malformedReason,
+    }]
+  })
+}
+
+function isAuthorized(verdict, allowlist) {
+  return allowlist.length === 0 || allowlist.includes(verdict.author)
+}
+
+function matchesHead(sha, headSha) {
+  return (
+    typeof sha === "string" &&
+    VALID_SHA.test(sha) &&
+    typeof headSha === "string" &&
+    headSha.toLowerCase().startsWith(sha)
+  )
+}
+
+/**
+ * Evaluate one append-only verifier verdict timeline for the current PR head.
+ * Bound verdicts for older heads remain history. Among relevant current-head,
+ * legacy-unbound, and malformed evidence, the latest sequence wins.
  *
  * @param {object} input
- * @param {Array<{author: string, sha: string | null}>} input.verifierPasses
- *   one entry per pass-marker comment: comment author login + bound sha (null when unbound)
+ * @param {Array<{
+ *   kind: "pass"|"blocker"|"malformed",
+ *   author: string,
+ *   sha: string|null,
+ *   sequence: number,
+ *   malformedReason: string|null,
+ * }>} input.verifierVerdicts
  * @param {string} input.headSha        the PR's current head SHA
  * @param {string[]} [input.allowlist]  override for tests; defaults to VERIFIER_ALLOWLIST
  * @returns {{ ok: boolean, reason: string }}
  */
 export function evaluateVerifierAttestation(input) {
   const allowlist = input.allowlist ?? VERIFIER_ALLOWLIST
-  const passes = input.verifierPasses ?? []
+  const verdicts = input.verifierVerdicts ?? []
+  const sequences = new Set()
 
-  if (!passes.length) return { ok: false, reason: "no-verifier-pass" }
+  for (const verdict of verdicts) {
+    if (
+      !Number.isFinite(verdict.sequence) ||
+      !Number.isInteger(verdict.sequence) ||
+      verdict.sequence < 0 ||
+      sequences.has(verdict.sequence)
+    ) {
+      return { ok: false, reason: "verifier-verdict-malformed" }
+    }
+    sequences.add(verdict.sequence)
+  }
 
-  const boundToHead = passes.filter(
-    (pass) =>
-      typeof pass.sha === "string" &&
-      pass.sha.length >= 7 &&
-      input.headSha.startsWith(pass.sha),
-  )
-  if (!boundToHead.length) {
-    const anyBound = passes.some((pass) => typeof pass.sha === "string" && pass.sha.length >= 7)
+  const ordered = [...verdicts].sort((left, right) => left.sequence - right.sequence)
+  const relevant = ordered.filter((verdict) => {
+    if (verdict.kind === "blocker" && verdict.sha === null) {
+      return true
+    }
+    if (verdict.kind === "malformed") {
+      return (
+        isAuthorized(verdict, allowlist) &&
+        (verdict.sha === null || matchesHead(verdict.sha, input.headSha))
+      )
+    }
+    return (
+      isAuthorized(verdict, allowlist) &&
+      matchesHead(verdict.sha, input.headSha)
+    )
+  })
+
+  const latest = relevant.at(-1)
+  if (latest?.kind === "pass") {
+    return { ok: true, reason: "verifier-attestation-valid" }
+  }
+  if (latest?.kind === "blocker") {
     return {
       ok: false,
-      reason: anyBound ? "verifier-pass-stale-sha" : "verifier-pass-not-sha-bound",
+      reason: latest.sha === null
+        ? "verifier-blocker-legacy-unbound"
+        : "verifier-blocker-current-head",
+    }
+  }
+  if (latest?.kind === "malformed") {
+    return { ok: false, reason: "verifier-verdict-malformed" }
+  }
+
+  for (const verdict of [...ordered].reverse()) {
+    if (verdict.kind !== "pass") continue
+    if (!isAuthorized(verdict, allowlist)) {
+      if (matchesHead(verdict.sha, input.headSha)) {
+        return { ok: false, reason: "verifier-not-authorized" }
+      }
+      continue
+    }
+    return {
+      ok: false,
+      reason: verdict.sha === null
+        ? "verifier-pass-not-sha-bound"
+        : "verifier-pass-stale-sha",
     }
   }
 
-  if (allowlist.length) {
-    const authorized = boundToHead.some((pass) => allowlist.includes(pass.author))
-    if (!authorized) return { ok: false, reason: "verifier-not-authorized" }
-  }
-
-  return { ok: true, reason: "verifier-attestation-valid" }
+  return { ok: false, reason: "no-verifier-pass" }
 }
 
 export function resolveTopology(issueLabels = []) {
@@ -92,9 +198,8 @@ export function resolveTopology(issueLabels = []) {
  * @param {object} input
  * @param {boolean} input.isOpen              PR state is open
  * @param {boolean} input.isDraft             PR is a draft
- * @param {Array<{author: string, sha: string | null}>} input.verifierPasses
- *   parsed pass-marker comments (see evaluateVerifierAttestation)
- * @param {boolean} input.hasBlockerMarker    a <!-- split-verifier-blocker --> comment exists
+ * @param {Array<object>} input.verifierVerdicts
+ *   parsed ordered verdict records (see parseVerifierComments)
  * @param {boolean} input.hasStopComment      a stop signal comment exists
  * @param {string[]} input.issueLabels        labels on the linked issue
  * @param {string} input.headSha              the PR's current head SHA
@@ -127,14 +232,13 @@ export function decideMerge(input) {
   if (blocker) return { merge: false, reason: `blocking-label:${blocker}` }
 
   if (input.hasStopComment) return { merge: false, reason: "stop-comment" }
-  if (input.hasBlockerMarker) return { merge: false, reason: "verifier-blocker" }
 
   const topology = resolveTopology(input.issueLabels)
   if (!topology.ok) return { merge: false, reason: topology.reason }
 
   if (topology.topology === "split") {
     const attestation = evaluateVerifierAttestation({
-      verifierPasses: input.verifierPasses,
+      verifierVerdicts: input.verifierVerdicts,
       headSha: input.headSha,
       allowlist: input.verifierAllowlist,
     })
