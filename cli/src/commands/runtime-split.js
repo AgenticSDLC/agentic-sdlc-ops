@@ -18,9 +18,8 @@ const {
   getWorktreeStatus,
   pushBranch,
   prepareCombinedRuntime,
-  buildBranchName,
 } = require("../lib/runtime-combined");
-const { resolveRuntimeWorkingDirectory } = require("../lib/worktree");
+const { resolveIssueBranch, resolveRuntimeWorkingDirectory } = require("../lib/worktree");
 const {
   IMPLEMENTATION_MARKER,
   SPLIT_ROLES,
@@ -73,13 +72,20 @@ async function handleRuntimeSplit(args) {
     );
   }
 
+  // Finalization is provider-only cleanup after merge. The issue branch may
+  // already have been deleted, so it must not depend on branch discovery.
+  if (args.finalize) {
+    await runFinalize(rootDir, args, config, controlPlane, current);
+    return;
+  }
+
   // If this issue's branch already lives in its own worktree (created via
   // `agentic-sdlc issue worktree`), operate there instead of rootDir — split
   // roles run in short bursts across time, so this matters even more than
   // for combined: a stale local checkout between planner and builder runs is
   // exactly what worktrees prevent. Refuses instead of guessing when
   // --target was explicit and doesn't match.
-  const branch = buildBranchName(current.issue);
+  const branch = resolveIssueBranch(rootDir, current.issue.number);
   const worktreeResolution = resolveRuntimeWorkingDirectory(rootDir, branch, Boolean(args.target));
   if (worktreeResolution.redirected) {
     rootDir = worktreeResolution.rootDir;
@@ -90,11 +96,6 @@ async function handleRuntimeSplit(args) {
   }
 
   const executionBackend = getExecutionBackend(config);
-
-  if (args.finalize) {
-    await runFinalize(rootDir, args, config, controlPlane, current);
-    return;
-  }
 
   const { comments } = controlPlane.capabilities.listIssueComments(rootDir, args.issue);
   const phases = detectSplitPhases(comments);
@@ -119,18 +120,18 @@ async function handleRuntimeSplit(args) {
 
   try {
     if (role === "planner") {
-      await runPlannerPhase(rootDir, args, config, controlPlane, executionBackend, current, phases);
+      await runPlannerPhase(rootDir, args, config, controlPlane, executionBackend, current, phases, branch);
     } else if (role === "builder") {
-      await runBuilderPhase(rootDir, args, config, controlPlane, executionBackend, current, comments, phases);
+      await runBuilderPhase(rootDir, args, config, controlPlane, executionBackend, current, comments, phases, branch);
     } else {
-      await runVerifierPhase(rootDir, args, config, controlPlane, current, comments);
+      await runVerifierPhase(rootDir, args, config, controlPlane, current, comments, branch);
     }
   } finally {
     clearTimeout(watchdog);
   }
 }
 
-async function runPlannerPhase(rootDir, args, config, controlPlane, executionBackend, current, phases) {
+async function runPlannerPhase(rootDir, args, config, controlPlane, executionBackend, current, phases, branch) {
   printPhase("🧭", "planner");
 
   if (phases.planner) {
@@ -139,7 +140,7 @@ async function runPlannerPhase(rootDir, args, config, controlPlane, executionBac
     return;
   }
 
-  const prepared = prepareCombinedRuntime(rootDir, current.issue, config);
+  const prepared = prepareCombinedRuntime(rootDir, current.issue, config, branch);
   if (!prepared.transitionDecision.ok) {
     const reason = `Lifecycle policy blocked planner start: ${prepared.transitionDecision.findings.join(" ")}`;
     controlPlane.capabilities.addIssueComment(rootDir, args.issue, buildBlockerComment(reason));
@@ -186,7 +187,7 @@ async function runPlannerPhase(rootDir, args, config, controlPlane, executionBac
   );
 }
 
-async function runBuilderPhase(rootDir, args, config, controlPlane, executionBackend, current, comments, phases) {
+async function runBuilderPhase(rootDir, args, config, controlPlane, executionBackend, current, comments, phases, branch) {
   printPhase("🔨", "builder");
 
   // Hard gate: no builder work without a visible planner handoff.
@@ -197,7 +198,7 @@ async function runBuilderPhase(rootDir, args, config, controlPlane, executionBac
     throw new Error(reason);
   }
 
-  const prepared = prepareCombinedRuntime(rootDir, current.issue, config);
+  const prepared = prepareCombinedRuntime(rootDir, current.issue, config, branch);
   const startingBranch = getCurrentBranchName(rootDir);
 
   if (!phases.implementation) {
@@ -311,10 +312,10 @@ async function runBuilderPhase(rootDir, args, config, controlPlane, executionBac
   );
 }
 
-async function runVerifierPhase(rootDir, args, config, controlPlane, current, comments) {
+async function runVerifierPhase(rootDir, args, config, controlPlane, current, comments, branch) {
   printPhase("🔎", "verifier");
 
-  const prepared = prepareCombinedRuntime(rootDir, current.issue, config);
+  const prepared = prepareCombinedRuntime(rootDir, current.issue, config, branch);
   const prLookup = controlPlane.capabilities.getPullRequestForBranch(rootDir, prepared.branch);
 
   if (!prLookup.pullRequest) {
